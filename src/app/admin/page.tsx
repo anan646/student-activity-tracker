@@ -765,40 +765,75 @@ export default function AdminPortal() {
 
           <div className="my-6 p-5 rounded-2xl bg-slate-50 border border-slate-200">
             <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
-              เลือกปีการศึกษาที่ต้องการดึงข้อมูล:
+              เลือกปีการศึกษาที่ต้องการดึงข้อมูล (สามารถพิมพ์เพิ่มปีถัดไปได้ เช่น 2569, 2570...):
             </h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {['2565', '2566', '2567', '2568'].map((year) => {
-                const isChecked = selectedSyncYears.includes(year);
-                return (
-                  <label
-                    key={year}
-                    className={`flex items-center gap-2.5 p-3.5 rounded-2xl border cursor-pointer transition select-none ${
-                      isChecked
-                        ? 'bg-indigo-50/70 border-indigo-300 text-indigo-900 font-bold'
-                        : 'bg-white border-slate-200 text-slate-600'
-                    }`}
+            <div className="flex flex-wrap gap-2.5 mb-4">
+              {selectedSyncYears.map((year) => (
+                <div
+                  key={year}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-900 font-bold text-sm"
+                >
+                  <span>ปีการศึกษา {year}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedSyncYears(selectedSyncYears.filter((y) => y !== year))}
+                    className="text-indigo-400 hover:text-red-500 font-bold ml-1 text-base cursor-pointer"
                   >
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedSyncYears([...selectedSyncYears, year]);
-                        } else {
-                          setSelectedSyncYears(selectedSyncYears.filter((y) => y !== year));
-                        }
-                      }}
-                      className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
-                    />
-                    <span>ปีการศึกษา {year}</span>
-                  </label>
-                );
-              })}
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
-            <p className="text-[11px] text-slate-400 mt-3">
-              * ระบบจะส่งคำขอไปยังระบบทะเบียน คัดกรองรหัส นศ. ชื่อ-สกุล สาขาวิชา และคำนวณชั้นปีให้อัตโนมัติ
-            </p>
+
+            {/* ช่องเพิ่มปีการศึกษาใหม่ในอนาคต */}
+            <div className="flex items-center gap-2 max-w-sm mb-4">
+              <input
+                type="text"
+                id="newYearInput"
+                placeholder="ระบุปี เช่น 2569"
+                className="p-2.5 px-3.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 bg-white"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const val = (e.currentTarget.value || '').trim();
+                    if (val && !selectedSyncYears.includes(val)) {
+                      setSelectedSyncYears([...selectedSyncYears, val].sort());
+                      e.currentTarget.value = '';
+                    }
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const input = document.getElementById('newYearInput') as HTMLInputElement;
+                  if (input && input.value.trim()) {
+                    const val = input.value.trim();
+                    if (!selectedSyncYears.includes(val)) {
+                      setSelectedSyncYears([...selectedSyncYears, val].sort());
+                      input.value = '';
+                    }
+                  }
+                }}
+                className="px-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                + เพิ่มปีการศึกษา
+              </button>
+            </div>
+
+            {/* กล่องแสดงโครงสร้างรหัสสาขาวิชา */}
+            <div className="p-3.5 bg-white rounded-xl border border-slate-200 text-xs">
+              <span className="font-bold text-slate-700 block mb-1">🏷️ การจำแนกสาขาวิชาอัตโนมัติตามรหัส 3 หลัก:</span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-slate-600">
+                <span>• <b>441:</b> อิสลามศึกษา</span>
+                <span>• <b>442:</b> ภาษาอาหรับ</span>
+                <span>• <b>443:</b> วิทยาศาสตร์ทั่วไป</span>
+                <span>• <b>444:</b> เคมี</span>
+                <span>• <b>445:</b> ภาษาอังกฤษ</span>
+                <span>• <b>446:</b> ภาษามลายูและเทคโนโลยีการศึกษา</span>
+                <span>• <b>447:</b> การศึกษาปฐมวัย</span>
+              </div>
+            </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-center gap-3">
