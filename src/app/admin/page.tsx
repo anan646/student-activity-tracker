@@ -63,7 +63,7 @@ export default function AdminPortal() {
   // ตัวกรองรายงาน
   const [filterType, setFilterType] = useState<'all' | 'year' | 'major'>('all');
   const [selectedYear, setSelectedYear] = useState('1');
-  const [selectedMajor, setSelectedMajor] = useState('วิทยาการคอมพิวเตอร์');
+  const [selectedMajor, setSelectedMajor] = useState('อิสลามศึกษา');
 
   // ตรวจสอบ PIN (รหัสเริ่มต้นคือ 1234 หรือปล่อยว่างได้)
   const handleLogin = (e: React.FormEvent) => {
@@ -468,6 +468,7 @@ export default function AdminPortal() {
                   <tr>
                     <th className="py-3 px-4">รหัสนักศึกษา</th>
                     <th className="py-3 px-4">ชื่อ-นามสกุล</th>
+                    <th className="py-3 px-4 text-center">เพศ</th>
                     <th className="py-3 px-4">สาขาวิชา</th>
                     <th className="py-3 px-4 text-center">ชั้นปี</th>
                     <th className="py-3 px-4 text-center">ชั่วโมงสะสม</th>
@@ -482,6 +483,13 @@ export default function AdminPortal() {
                       <tr key={st.studentId} className="hover:bg-slate-50/50">
                         <td className="py-3 px-4 font-mono font-semibold text-slate-800">{st.studentId}</td>
                         <td className="py-3 px-4 font-medium text-slate-900">{st.name}</td>
+                        <td className="py-3 px-4 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                            st.gender === 'ชาย' ? 'bg-sky-50 text-sky-700 border border-sky-200' : 'bg-pink-50 text-pink-700 border border-pink-200'
+                          }`}>
+                            {st.gender}
+                          </span>
+                        </td>
                         <td className="py-3 px-4 text-slate-600">{st.major}</td>
                         <td className="py-3 px-4 text-center">ปี {st.yearLevel}</td>
                         <td className="py-3 px-4 text-center font-bold text-indigo-600">{hrs} ชม.</td>

@@ -1,9 +1,10 @@
 export interface Student {
   studentId: string;
   name: string;
-  major: string;        // เช่น วิทยาการคอมพิวเตอร์, เทคโนโลยีสารสนเทศ
-  academicYear: string; // เช่น 2567
-  yearLevel: number;    // ชั้นปี เช่น 1, 2, 3, 4
+  gender: 'ชาย' | 'หญิง' | string;
+  major: string;        // เช่น อิสลามศึกษา, การศึกษาปฐมวัย, ภาษาอังกฤษ ฯลฯ
+  academicYear: string; // เช่น 2569, 2568, 2567, 2566
+  yearLevel: number;    // ชั้นปี 1, 2, 3, 4
 }
 
 export interface Activity {
@@ -12,7 +13,7 @@ export interface Activity {
   category: 'มหาวิทยาลัย' | 'คณะ/สาขา' | 'บำเพ็ญประโยชน์/จิตอาสา' | 'ส่งเสริมวิชาการ/วิชาชีพ';
   hours: number;
   date: string;         // YYYY-MM-DD
-  academicYear: string; // เช่น 2567
+  academicYear: string; // เช่น 2569
   location: string;
   description?: string;
 }

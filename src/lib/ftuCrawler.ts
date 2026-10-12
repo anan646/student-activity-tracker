@@ -1,6 +1,6 @@
 import { Student } from '@/types';
 
-// แมปสาขาวิชาตามโครงสร้างรหัส 3 หลัก (ตำแหน่งที่ 4-6 ของรหัสนักศึกษา)
+// 1. ตารางสาขาวิชาตามโครงสร้างรหัส 3 หลัก (หลักที่ 4-6 ของรหัสนักศึกษา)
 export const MAJOR_MAP: Record<string, string> = {
   '441': 'อิสลามศึกษา',
   '442': 'ภาษาอาหรับ',
@@ -11,6 +11,7 @@ export const MAJOR_MAP: Record<string, string> = {
   '447': 'การศึกษาปฐมวัย',
 };
 
+// ฟังก์ชันระบุสาขาวิชาจากรหัสนักศึกษา
 export function getMajorFromStudentId(studentId: string): string {
   if (studentId.length >= 6) {
     const code = studentId.substring(3, 6);
@@ -21,19 +22,42 @@ export function getMajorFromStudentId(studentId: string): string {
   return 'ไม่ระบุสาขา';
 }
 
-// ฟังก์ชันคำนวณชั้นปีแบบ Dynamic อิงจากปีการศึกษาปัจจุบัน
-export function calculateYearLevel(entryYearStr: string, currentAcademicYear?: number): number {
-  const entryYear = parseInt(entryYearStr, 10);
-  // หากไม่ระบุ ให้คำนวณปีปัจจุบันตามปฏิทิน พ.ศ. (เดือน 5 ขึ้นไป ถือเป็นปีการศึกษาใหม่)
-  const now = new Date();
-  const currentYearBE = now.getFullYear() + 543;
-  const currentAcad = currentAcademicYear || (now.getMonth() >= 4 ? currentYearBE : currentYearBE - 1);
-
-  if (isNaN(entryYear)) return 1;
-  const level = currentAcad - entryYear + 1;
-  return level > 0 && level <= 6 ? level : 1;
+// 2. ฟังก์ชันระบุเพศจากรหัสนักศึกษา (หลักที่ 3: 1 = ชาย, 2 = หญิง) หรือคำนำหน้า
+export function getGenderFromStudentId(studentId: string, name?: string): 'ชาย' | 'หญิง' {
+  if (studentId.length >= 3) {
+    const digit3 = studentId.charAt(2);
+    if (digit3 === '1') return 'ชาย';
+    if (digit3 === '2') return 'หญิง';
+  }
+  if (name) {
+    if (name.includes('นาย')) return 'ชาย';
+    if (name.includes('นางสาว') || name.includes('นาง') || name.includes('น.ส.')) return 'หญิง';
+  }
+  return 'ชาย';
 }
 
+// 3. ฟังก์ชันคำนวณปีการศึกษาที่เข้าและชั้นปีที่ถูกต้องแม่นยำ
+// รหัส 2 หลักแรก = ปี พ.ศ. ที่เข้าศึกษา (เช่น 69 = 2569, 68 = 2568, 67 = 2567, 66 = 2566)
+export function getAcademicYearAndLevel(studentId: string, currentAcademicYear = 2569): {
+  academicYear: string;
+  yearLevel: number;
+} {
+  const prefix2 = studentId.length >= 2 ? studentId.substring(0, 2) : '69';
+  const entryYearBE = '25' + prefix2;
+  const entryYearNum = parseInt(entryYearBE, 10);
+
+  // คำนวณชั้นปี: ปี 2569 นศ. รหัส 69 อยู่ปี 1, รหัส 68 อยู่ปี 2, รหัส 67 อยู่ปี 3, รหัส 66 อยู่ปี 4
+  let yearLevel = currentAcademicYear - entryYearNum + 1;
+  if (yearLevel < 1) yearLevel = 1;
+  if (yearLevel > 6) yearLevel = 4;
+
+  return {
+    academicYear: entryYearBE,
+    yearLevel,
+  };
+}
+
+// 4. ดึงข้อมูลนักศึกษาจากระบบสำนักทะเบียน FTU
 export async function fetchStudentsFromFTU(acadYear: string): Promise<Student[]> {
   const baseUrl = 'https://reg.ftu.ac.th/registrar/studentset.asp';
   const mainUrl = `${baseUrl}?levelid=40&facultyid=4000&acadyear=${acadYear}&d1=2&semester=1`;
@@ -90,15 +114,17 @@ export async function fetchStudentsFromFTU(acadYear: string): Promise<Student[]>
 
             if (/^\d{8,10}$/.test(studentId) && name) {
               if (!students.some((s) => s.studentId === studentId)) {
-                // ระบุสาขาอัตโนมัติตามโครงสร้างรหัส 3 หลัก
                 const major = getMajorFromStudentId(studentId);
+                const gender = getGenderFromStudentId(studentId, name);
+                const { academicYear, yearLevel } = getAcademicYearAndLevel(studentId);
 
                 students.push({
                   studentId,
                   name,
+                  gender,
                   major,
-                  academicYear: acadYear,
-                  yearLevel: calculateYearLevel(acadYear),
+                  academicYear,
+                  yearLevel,
                 });
               }
             }

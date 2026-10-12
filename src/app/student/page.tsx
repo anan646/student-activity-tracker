@@ -127,9 +127,12 @@ function StudentPortalContent() {
             <User className="w-6 h-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-xs font-black text-purple-700 px-2 py-0.5 rounded-lg bg-purple-100">
                 นักศึกษาปัจจุบัน
+              </span>
+              <span className="text-xs font-bold text-indigo-700 px-2 py-0.5 rounded-lg bg-indigo-50 border border-indigo-100">
+                เพศ: {data.student.gender}
               </span>
               <span className="text-xs font-mono font-bold text-purple-900/40">
                 {data.student.studentId}
@@ -181,8 +184,21 @@ function StudentPortalContent() {
           </div>
           <p className="mt-3 font-mono font-black text-2xl tracking-widest text-white">{data.student.studentId}</p>
           <h2 className="text-lg font-bold text-purple-100">{data.student.name}</h2>
-          <p className="text-xs font-semibold text-purple-300">
-            สาขาวิชา{data.student.major} • ชั้นปีที่ {data.student.yearLevel}
+          
+          <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
+            <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-[11px] font-bold text-purple-200 border border-white/10">
+              เพศ: {data.student.gender}
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-[11px] font-bold text-purple-200 border border-white/10">
+              ชั้นปีที่ {data.student.yearLevel}
+            </span>
+            <span className="px-2.5 py-0.5 rounded-full bg-white/10 text-[11px] font-bold text-purple-200 border border-white/10">
+              ปีที่เข้า {data.student.academicYear}
+            </span>
+          </div>
+
+          <p className="text-xs font-semibold text-purple-200 mt-2.5">
+            สาขาวิชา: <span className="text-white font-bold">{data.student.major}</span>
           </p>
         </div>
 
