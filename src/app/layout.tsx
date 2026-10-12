@@ -15,6 +15,8 @@ export const metadata: Metadata = {
   description: 'ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ เชื่อมต่อ Google Sheets',
 };
 
+import Footer from '@/components/Footer';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -22,13 +24,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th" className={prompt.variable}>
-      <body className="font-sans antialiased bg-[#fcfaff] text-[#1e1333] min-h-screen flex flex-col selection:bg-purple-200 selection:text-purple-900">
-        <div className="fixed inset-0 purple-gradient-hero pointer-events-none -z-10" />
+      <body className="font-sans antialiased bg-[#f8fafc] text-[#1e1333] min-h-screen flex flex-col selection:bg-blue-100 selection:text-blue-900">
         <Navbar />
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-purple-100/60 bg-white/70 backdrop-blur-md py-6 text-center text-xs text-purple-900/40">
-          <p>© ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา • สถาบันการศึกษา • เชื่อมต่อ Google Sheets</p>
-        </footer>
+        <Footer />
       </body>
     </html>
   );

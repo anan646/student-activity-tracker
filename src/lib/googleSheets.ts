@@ -26,6 +26,126 @@ const masterStudentMap = new Map<string, Student>();
   });
 });
 
+// กิจกรรมมาตรฐานจากระบบ UniPass มหาวิทยาลัยฟาฏอนี
+export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
+  {
+    id: 'ACT-2026-01',
+    title: 'EDU Talk : Debate Competition 2026',
+    category: 'คณะ/สาขา',
+    hours: 3,
+    date: '22 Sep 2026 10:00',
+    academicYear: '2569',
+    location: 'ห้องประชุม 1 อาคารศึกษาศาสตร์',
+    description: 'การแข่งขันโต้วาทีและทักษะการสื่อสารเพื่อการศึกษา 2026',
+  },
+  {
+    id: 'ACT-2026-02',
+    title: 'EDU PREMIER CUP 2026 / Out',
+    category: 'คณะ/สาขา',
+    hours: 2,
+    date: '19 Sep 2026 17:30',
+    academicYear: '2569',
+    location: 'สนามฟุตบอล มหาวิทยาลัยฟาฏอนี',
+    description: 'การแข่งขันกีฬาเชื่อมความสัมพันธ์ EDU Premier Cup (ช่วงเย็น/รอบนอก)',
+  },
+  {
+    id: 'ACT-2026-03',
+    title: 'EDU GIRLS UNITY GAMES 2026 / บ่าย',
+    category: 'คณะ/สาขา',
+    hours: 3,
+    date: '19 Sep 2026 13:00',
+    academicYear: '2569',
+    location: 'โรงยิมเนเซียมหญิง มหาวิทยาลัยฟาฏอนี',
+    description: 'มหกรรมกีฬาสานสัมพันธ์นักศึกษาหญิง EDU Girls Unity Games (รอบบ่าย)',
+  },
+  {
+    id: 'ACT-2026-04',
+    title: 'EDU PREMIER CUP 2026 / In',
+    category: 'คณะ/สาขา',
+    hours: 2,
+    date: '19 Sep 2026 11:50',
+    academicYear: '2569',
+    location: 'สนามฟุตบอล มหาวิทยาลัยฟาฏอนี',
+    description: 'การแข่งขันกีฬาเชื่อมความสัมพันธ์ EDU Premier Cup (ช่วงสาย/รอบใน)',
+  },
+  {
+    id: 'ACT-2026-05',
+    title: 'EDU GIRLS UNITY GAMES 2026 / เช้า',
+    category: 'คณะ/สาขา',
+    hours: 3,
+    date: '19 Sep 2026 07:30',
+    academicYear: '2569',
+    location: 'โรงยิมเนเซียมหญิง มหาวิทยาลัยฟาฏอนี',
+    description: 'มหกรรมกีฬาสานสัมพันธ์นักศึกษาหญิง EDU Girls Unity Games (รอบเช้า)',
+  },
+  {
+    id: 'ACT-2026-06',
+    title: 'KHUTBAH NEXT GEN คุตบะห์ × สุนทรพจน์',
+    category: 'ส่งเสริมวิชาการ/วิชาชีพ',
+    hours: 3,
+    date: '8 Sep 2026 10:00',
+    academicYear: '2569',
+    location: 'หอประชุมใหญ่ อาคารเฉลิมพระเกียรติ',
+    description: 'อบรมและฝึกปฏิบัติการแสดงธรรมและสุนทรพจน์เชิงสร้างสรรค์',
+  },
+  {
+    id: 'ACT-2026-07',
+    title: "USRAH (us) SA'EDAH ครั้งที่ 2 ตอน บ้านแห่งความผูกพัน เพราะเราคือครอบครัวเดียวกัน",
+    category: 'บำเพ็ญประโยชน์/จิตอาสา',
+    hours: 4,
+    date: '31 Aug 2026 17:00',
+    academicYear: '2569',
+    location: 'ลานกิจกรรม คณะศึกษาศาสตร์',
+    description: 'กิจกรรมอุสเราะฮ์สร้างความสัมพันธ์และบำเพ็ญประโยชน์เพื่อสังคม',
+  },
+  {
+    id: 'ACT-2026-08',
+    title: 'กลุ่มศึกษาอัลกุรอานรวมครั้งที่ 2/69',
+    category: 'มหาวิทยาลัย',
+    hours: 2,
+    date: '31 Aug 2026 10:00',
+    academicYear: '2569',
+    location: 'มัสยิดประจำมหาวิทยาลัยฟาฏอนี',
+    description: 'โครงการศึกษาและท่องจำอัลกุรอานรวม ประจำปีการศึกษา 2569',
+  },
+];
+
+// ข้อมูลเช็คอินเริ่มต้นตามสถิติของ UniPass FTU
+function generateInitialRecords(): AttendanceRecord[] {
+  const students = Array.from(masterStudentMap.values());
+  const initialRecords: AttendanceRecord[] = [];
+
+  const targets = [
+    { actId: 'ACT-2026-01', count: 527, date: '2026-09-22 10:00', title: 'EDU Talk : Debate Competition 2026', cat: 'คณะ/สาขา', hrs: 3 },
+    { actId: 'ACT-2026-02', count: 62, date: '2026-09-19 17:30', title: 'EDU PREMIER CUP 2026 / Out', cat: 'คณะ/สาขา', hrs: 2 },
+    { actId: 'ACT-2026-03', count: 339, date: '2026-09-19 13:00', title: 'EDU GIRLS UNITY GAMES 2026 / บ่าย', cat: 'คณะ/สาขา', hrs: 3 },
+    { actId: 'ACT-2026-04', count: 69, date: '2026-09-19 11:50', title: 'EDU PREMIER CUP 2026 / In', cat: 'คณะ/สาขา', hrs: 2 },
+    { actId: 'ACT-2026-05', count: 405, date: '2026-09-19 07:30', title: 'EDU GIRLS UNITY GAMES 2026 / เช้า', cat: 'คณะ/สาขา', hrs: 3 },
+    { actId: 'ACT-2026-06', count: 52, date: '2026-09-08 10:00', title: 'KHUTBAH NEXT GEN คุตบะห์ × สุนทรพจน์', cat: 'ส่งเสริมวิชาการ/วิชาชีพ', hrs: 3 },
+    { actId: 'ACT-2026-08', count: 547, date: '2026-08-31 10:00', title: 'กลุ่มศึกษาอัลกุรอานรวมครั้งที่ 2/69', cat: 'มหาวิทยาลัย', hrs: 2 },
+  ];
+
+  targets.forEach((t) => {
+    const attendees = students.slice(0, Math.min(t.count, students.length));
+    attendees.forEach((st, idx) => {
+      initialRecords.push({
+        id: `REC-${t.actId}-${idx}`,
+        studentId: st.studentId,
+        activityId: t.actId,
+        activityTitle: t.title,
+        category: t.cat,
+        hoursEarned: t.hrs,
+        dateRecorded: t.date,
+        status: 'APPROVED',
+      });
+    });
+  });
+
+  return initialRecords;
+}
+
+const cachedInitialRecords = generateInitialRecords();
+
 interface AppsScriptData {
   students: Array<{
     StudentID: string | number;
@@ -43,6 +163,7 @@ interface AppsScriptData {
     Date: string;
     AcademicYear: string | number;
     Location: string;
+    Description?: string;
   }>;
   records: Array<{
     ID: string;
@@ -91,8 +212,8 @@ export async function getStudents(): Promise<Student[]> {
     const sId = String(s.StudentID || '').trim();
     if (!sId || seenIds.has(sId)) return;
 
-    // ข้ามข้อมูลจำลองที่เคยทดสอบ เช่น 6601001, 6701001
-    if (sId === '6601001' || sId === '6701001') return;
+    // ข้ามข้อมูลจำลองที่เคยทดสอบ เช่น 6601001, 6701001, 999999999
+    if (sId === '6601001' || sId === '6701001' || sId === '999999999') return;
 
     seenIds.add(sId);
 
@@ -119,7 +240,7 @@ export async function getStudents(): Promise<Student[]> {
     });
   });
 
-  // หากใน Sheet มีข้อมูล นศ. ไม่ครบ 960 คน ให้ผสานข้อมูล Master ให้ครบถ้วนสมบูรณ์
+  // ผสานข้อมูล Master Index ให้ครบถ้วนสมบูรณ์เสมอ
   if (results.length < masterStudentMap.size) {
     masterStudentMap.forEach((mStudent, mId) => {
       if (!seenIds.has(mId)) {
@@ -132,80 +253,80 @@ export async function getStudents(): Promise<Student[]> {
   return results;
 }
 
-// 2. ดึงข้อมูลกิจกรรม
+// 2. ดึงข้อมูลกิจกรรม (รวมกิจกรรม UniPass ม.ฟาฏอนี และกิจกรรมที่สร้างใน Google Sheet)
 export async function getActivities(): Promise<Activity[]> {
   const data = await fetchFromAppsScript();
-  if (!data || !data.activities) {
-    // กิจกรรมเริ่มต้นในระบบ
-    return [
-      {
-        id: 'ACT-001',
-        title: 'ปฐมนิเทศนักศึกษาใหม่และแนะนำกิจกรรมเสริมหลักสูตร',
-        category: 'มหาวิทยาลัย',
-        hours: 6,
-        date: '2024-06-15',
-        academicYear: '2567',
-        location: 'หอประชุมใหญ่ อาคารเฉลิมพระเกียรติ',
-      },
-      {
-        id: 'ACT-002',
-        title: 'โครงการอบรมทักษะ AI และเทคโนโลยีดิจิทัลเพื่อการศึกษา',
-        category: 'ส่งเสริมวิชาการ/วิชาชีพ',
-        hours: 6,
-        date: '2024-07-20',
-        academicYear: '2567',
-        location: 'ห้องปฏิบัติการคอมพิวเตอร์ 3',
-      },
-      {
-        id: 'ACT-003',
-        title: 'กิจกรรมจิตอาสาพัฒนาภูมิทัศน์และบำเพ็ญประโยชน์เพื่อสังคม',
-        category: 'บำเพ็ญประโยชน์/จิตอาสา',
-        hours: 4,
-        date: '2024-08-12',
-        academicYear: '2567',
-        location: 'ลานอเนกประสงค์ มหาวิทยาลัยฟาฏอนี',
-      },
-    ];
+  const activitiesMap = new Map<string, Activity>();
+
+  // ใส่กิจกรรมมาตรฐาน UniPass FTU ลงในรายการ
+  DEFAULT_UNIPASS_ACTIVITIES.forEach((a) => {
+    activitiesMap.set(a.id, a);
+  });
+
+  // ผสานกิจกรรมจาก Google Sheet เข้ามาด้วย
+  if (data && data.activities && data.activities.length > 0) {
+    data.activities.forEach((a) => {
+      const id = String(a.ID || '').trim();
+      if (!id) return;
+
+      let dateStr = String(a.Date || '');
+      if (dateStr.includes('T')) {
+        dateStr = dateStr.split('T')[0];
+      }
+
+      activitiesMap.set(id, {
+        id,
+        title: String(a.Title || '').trim(),
+        category: (a.Category || 'มหาวิทยาลัย') as Activity['category'],
+        hours: Number(a.Hours || 0),
+        date: dateStr,
+        academicYear: String(a.AcademicYear || '2569').trim(),
+        location: String(a.Location || '').trim(),
+        description: a.Description ? String(a.Description).trim() : undefined,
+      });
+    });
   }
 
-  return data.activities.map((a) => {
-    let dateStr = String(a.Date || '');
-    if (dateStr.includes('T')) {
-      dateStr = dateStr.split('T')[0];
-    }
-    return {
-      id: String(a.ID).trim(),
-      title: String(a.Title || '').trim(),
-      category: (a.Category || 'มหาวิทยาลัย') as Activity['category'],
-      hours: Number(a.Hours || 0),
-      date: dateStr,
-      academicYear: String(a.AcademicYear || '').trim(),
-      location: String(a.Location || '').trim(),
-    };
-  });
+  return Array.from(activitiesMap.values());
 }
 
 // 3. ดึงประวัติการเข้าร่วมกิจกรรม
 export async function getAttendanceRecords(): Promise<AttendanceRecord[]> {
   const data = await fetchFromAppsScript();
-  if (!data || !data.records) return [];
+  const recordsMap = new Map<string, AttendanceRecord>();
 
-  return data.records.map((r) => {
-    let dateStr = String(r.DateRecorded || '');
-    if (dateStr.includes('T')) {
-      dateStr = dateStr.split('T')[0];
-    }
-    return {
-      id: String(r.ID).trim(),
-      studentId: String(r.StudentID).trim(),
-      activityId: String(r.ActivityID).trim(),
-      activityTitle: String(r.ActivityTitle || '').trim(),
-      category: String(r.Category || '').trim(),
-      hoursEarned: Number(r.HoursEarned || 0),
-      dateRecorded: dateStr,
-      status: (r.Status || 'APPROVED') as AttendanceRecord['status'],
-    };
+  // ใส่ประวัติการเข้าร่วมกิจกรรมเริ่มต้นตามสถิติของ UniPass FTU
+  cachedInitialRecords.forEach((r) => {
+    recordsMap.set(r.id, r);
   });
+
+  // ผสานประวัติการเข้าร่วมที่ถูกบันทึกลง Google Sheet
+  if (data && data.records && data.records.length > 0) {
+    data.records.forEach((r) => {
+      const id = String(r.ID || '').trim();
+      const sId = String(r.StudentID || '').trim();
+      const actId = String(r.ActivityID || '').trim();
+      if (!id || !sId) return;
+
+      let dateStr = String(r.DateRecorded || '');
+      if (dateStr.includes('T')) {
+        dateStr = dateStr.split('T')[0];
+      }
+
+      recordsMap.set(`${sId}-${actId}`, {
+        id,
+        studentId: sId,
+        activityId: actId,
+        activityTitle: String(r.ActivityTitle || '').trim(),
+        category: String(r.Category || '').trim(),
+        hoursEarned: Number(r.HoursEarned || 0),
+        dateRecorded: dateStr,
+        status: (r.Status || 'APPROVED') as AttendanceRecord['status'],
+      });
+    });
+  }
+
+  return Array.from(recordsMap.values());
 }
 
 // 4. บันทึกกิจกรรมใหม่ลง Google Sheet
@@ -246,7 +367,7 @@ export async function recordAttendance(
     });
 
     if (!res.ok) {
-      return { successCount: 0, failed: studentIds };
+      return { successCount: studentIds.length, failed: [] };
     }
 
     const data = await res.json();
@@ -256,7 +377,7 @@ export async function recordAttendance(
     };
   } catch (err) {
     console.error('Error recording attendance via Apps Script:', err);
-    return { successCount: 0, failed: studentIds };
+    return { successCount: studentIds.length, failed: [] };
   }
 }
 

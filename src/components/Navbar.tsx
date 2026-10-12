@@ -27,6 +27,10 @@ export default function Navbar() {
     router.push('/login');
   };
 
+  if (pathname?.startsWith('/admin')) {
+    return null;
+  }
+
   return (
     <nav className="border-b border-purple-100/70 bg-white/90 backdrop-blur-xl sticky top-0 z-40 transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
