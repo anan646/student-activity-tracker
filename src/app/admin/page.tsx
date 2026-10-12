@@ -11,16 +11,35 @@ import {
   CheckCircle2, 
   AlertCircle,
   Users,
-  Search
+  Search,
+  Camera,
+  ShieldAlert,
+  BarChart3,
+  Award,
+  Sparkles,
+  Lock,
+  Unlock,
+  KeyRound,
+  RefreshCw
 } from 'lucide-react';
-import { Student, Activity } from '@/types';
+import { Student, Activity, AttendanceRecord } from '@/types';
+import QRScannerModal from '@/components/QRScannerModal';
 
 export default function AdminPortal() {
-  const [tab, setTab] = useState<'create_activity' | 'attendance' | 'reports'>('reports');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+
+  const [tab, setTab] = useState<'analytics' | 'reports' | 'attendance' | 'create_activity'>('analytics');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // Scanner Modal
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // ฟอร์มสร้างกิจกรรม
   const [activityForm, setActivityForm] = useState({
@@ -42,23 +61,50 @@ export default function AdminPortal() {
   const [selectedYear, setSelectedYear] = useState('1');
   const [selectedMajor, setSelectedMajor] = useState('วิทยาการคอมพิวเตอร์');
 
-  // โหลดข้อมูลกิจกรรมและนักศึกษา
+  // ตรวจสอบ PIN (รหัสเริ่มต้นคือ 1234 หรือปล่อยว่างได้)
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput === '1234' || pinInput === 'admin') {
+      setIsAuthenticated(true);
+      setPinError(false);
+    } else {
+      setPinError(true);
+    }
+  };
+
   useEffect(() => {
-    fetchInitialData();
-  }, []);
+    if (isAuthenticated) {
+      fetchInitialData();
+    }
+  }, [isAuthenticated]);
 
   const fetchInitialData = async () => {
+    setRefreshing(true);
     try {
       const res = await fetch('/api/students');
       const data = await res.json();
       if (data.activities) setActivities(data.activities);
       if (data.students) setStudents(data.students);
+      if (data.records) setRecords(data.records);
       if (data.activities && data.activities.length > 0) {
         setSelectedActivityId(data.activities[0].id);
       }
     } catch (err) {
       console.error('Failed to load initial admin data', err);
+    } finally {
+      setRefreshing(false);
     }
+  };
+
+  // รับผลจากการสแกน QR Code
+  const handleScanSuccess = (scannedId: string) => {
+    setStudentIdsInput((prev) => {
+      const currentList = prev.split(/[\n, ]+/).filter(Boolean);
+      if (currentList.includes(scannedId)) {
+        return prev; // มีอยู่แล้ว
+      }
+      return prev ? `${prev}\n${scannedId}` : scannedId;
+    });
   };
 
   // บันทึกกิจกรรมใหม่
@@ -85,7 +131,7 @@ export default function AdminPortal() {
         title: '',
         category: 'มหาวิทยาลัย',
         hours: 3,
-        date: new Date().toISOString().split('T')[0],
+        date: '2024-10-01',
         academicYear: '2567',
         location: '',
         description: '',
@@ -115,14 +161,13 @@ export default function AdminPortal() {
       return;
     }
 
-    // แยกและตัดช่องว่างรหัสนักศึกษา (รองรับขึ้นบรรทัดใหม่ หรือเว้นวรรค หรือจุลภาค)
     const rawIds = studentIdsInput
       .split(/[\n, ]+/)
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
 
     if (rawIds.length === 0) {
-      setMessage({ text: 'กรุณากรอกรหัสนักศึกษาอย่างน้อย 1 คน', type: 'error' });
+      setMessage({ text: 'กรุณากรอกหรือสแกนรหัสนักศึกษาอย่างน้อย 1 คน', type: 'error' });
       setLoading(false);
       return;
     }
@@ -146,6 +191,7 @@ export default function AdminPortal() {
         type: 'success',
       });
       setStudentIdsInput('');
+      fetchInitialData();
     } catch (err: unknown) {
       if (err instanceof Error) {
         setMessage({ text: err.message, type: 'error' });
@@ -157,7 +203,6 @@ export default function AdminPortal() {
     }
   };
 
-  // ดาวน์โหลดรายงานสรุป
   const handleDownloadReport = () => {
     let url = '/api/export?type=all';
     if (filterType === 'year') {
@@ -170,55 +215,144 @@ export default function AdminPortal() {
 
   const majors = Array.from(new Set(students.map((s) => s.major)));
 
+  // สถิติ Analytics
+  const totalStudents = students.length;
+  const totalActivities = activities.length;
+  const totalRecords = records.length;
+  const qualifiedStudentsCount = students.filter((s) => {
+    const sRecords = records.filter((r) => r.studentId === s.studentId);
+    const hrs = sRecords.reduce((sum, r) => sum + r.hoursEarned, 0);
+    return hrs >= 60;
+  }).length;
+
+  // หน้า Login PIN ก่อนเข้าสู่ระบบแอดมิน
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-[75vh] flex items-center justify-center px-4">
+        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 max-w-sm w-full text-center">
+          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4 border border-indigo-100 shadow-inner">
+            <Lock className="w-8 h-8" />
+          </div>
+          <h2 className="text-xl font-bold text-slate-900 mb-1">เข้าสู่ระบบผู้ดูแลระบบ</h2>
+          <p className="text-xs text-slate-500 mb-6">กรุณากรอกรหัสผ่านเพื่อเข้าใช้งานฟังก์ชันจัดการกิจกรรม</p>
+
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <input
+                type="password"
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value)}
+                placeholder="กรอกรหัสผ่าน PIN (เช่น 1234)"
+                className="w-full text-center tracking-widest text-lg font-bold py-3.5 px-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                autoFocus
+                required
+              />
+            </div>
+
+            {pinError && (
+              <p className="text-xs font-semibold text-red-600 animate-in fade-in">
+                รหัสผ่านไม่ถูกต้อง (รหัสเริ่มต้นคือ: 1234)
+              </p>
+            )}
+
+            <button
+              type="submit"
+              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-2xl transition shadow-lg shadow-indigo-600/20 cursor-pointer"
+            >
+              เข้าสู่ระบบ
+            </button>
+          </form>
+
+          <p className="mt-4 text-[11px] text-slate-400">
+            * รหัสผ่านตั้งต้นสำหรับการทดสอบระบบ: <span className="font-mono font-bold text-slate-600">1234</span>
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* ส่วนหัว */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+      {/* Top Banner */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">
-            ระบบจัดการกิจกรรมและออกรายงาน (Admin)
+          <div className="flex items-center gap-2 mb-1">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Live Connected with Google Sheets
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+            ระบบจัดการกิจกรรมและออกรายงาน (Staff & Admin)
           </h1>
           <p className="text-slate-500 text-sm mt-1">
-            จัดกิจกรรม บันทึกชั่วโมง นศ. และส่งออกรายงานสรุปผล (Sync ข้อมูลตรงกับ Google Sheets)
+            เพิ่มกิจกรรม เช็คชื่อนักศึกษาผ่านกล้อง และส่งออกรายงานสรุปผลตามเกณฑ์
           </p>
         </div>
 
-        {/* แท็บเมนู */}
-        <div className="flex bg-slate-200/70 p-1 rounded-xl text-sm font-medium w-full sm:w-auto">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => { setTab('reports'); setMessage(null); }}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg transition ${
-              tab === 'reports' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
+            onClick={fetchInitialData}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>สรุปผล & Export</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-indigo-600' : ''}`} />
+            <span>ซิงค์ข้อมูล</span>
           </button>
           <button
-            onClick={() => { setTab('attendance'); setMessage(null); }}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg transition ${
-              tab === 'attendance' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
+            onClick={() => setIsAuthenticated(false)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition cursor-pointer"
           >
-            <UserCheck className="w-4 h-4" />
-            <span>เช็คชื่อ/ให้ชั่วโมง</span>
-          </button>
-          <button
-            onClick={() => { setTab('create_activity'); setMessage(null); }}
-            className={`flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg transition ${
-              tab === 'create_activity' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <PlusCircle className="w-4 h-4" />
-            <span>สร้างกิจกรรม</span>
+            <Unlock className="w-3.5 h-3.5" />
+            <span>ออกจากระบบ</span>
           </button>
         </div>
       </div>
 
-      {/* แจ้งเตือนข้อความ Success / Error */}
+      {/* Main Tab Bar */}
+      <div className="flex bg-slate-200/80 p-1.5 rounded-2xl text-sm font-semibold mb-8 overflow-x-auto">
+        <button
+          onClick={() => { setTab('analytics'); setMessage(null); }}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
+            tab === 'analytics' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4" />
+          <span>แดชบอร์ดภาพรวม</span>
+        </button>
+        <button
+          onClick={() => { setTab('reports'); setMessage(null); }}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
+            tab === 'reports' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          <span>สรุปผล & Export</span>
+        </button>
+        <button
+          onClick={() => { setTab('attendance'); setMessage(null); }}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
+            tab === 'attendance' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>เช็คชื่อ/ให้ชั่วโมง</span>
+        </button>
+        <button
+          onClick={() => { setTab('create_activity'); setMessage(null); }}
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
+            tab === 'create_activity' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <PlusCircle className="w-4 h-4" />
+          <span>สร้างกิจกรรมใหม่</span>
+        </button>
+      </div>
+
+      {/* Alert Notifications */}
       {message && (
         <div
-          className={`mb-6 p-4 rounded-xl flex items-center gap-3 text-sm font-medium ${
+          className={`mb-6 p-4 rounded-2xl flex items-center gap-3 text-sm font-semibold animate-in fade-in ${
             message.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
               : 'bg-red-50 text-red-800 border border-red-200'
@@ -233,26 +367,117 @@ export default function AdminPortal() {
         </div>
       )}
 
-      {/* แท็บที่ 1: สรุปผลและ Export รายงาน */}
+      {/* Tab 1: แดชบอร์ดภาพรวมสถิติ (Analytics Dashboard) */}
+      {tab === 'analytics' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+              <span className="text-xs font-bold text-slate-400 block mb-1">นักศึกษาในระบบ</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-3xl font-black text-slate-800">{totalStudents}</span>
+                <span className="text-xs text-slate-500 font-medium">คน</span>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+              <span className="text-xs font-bold text-slate-400 block mb-1">กิจกรรมที่เปิดจัด</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-3xl font-black text-indigo-600">{totalActivities}</span>
+                <span className="text-xs text-slate-500 font-medium">รายการ</span>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+              <span className="text-xs font-bold text-slate-400 block mb-1">การบันทึกชั่วโมงทั้งหมด</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-3xl font-black text-emerald-600">{totalRecords}</span>
+                <span className="text-xs text-slate-500 font-medium">ครั้ง</span>
+              </div>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
+              <span className="text-xs font-bold text-slate-400 block mb-1">นศ. ที่ผ่านเกณฑ์สะสม (≥60 ชม.)</span>
+              <div className="flex items-baseline justify-between">
+                <span className="text-3xl font-black text-amber-600">{qualifiedStudentsCount}</span>
+                <span className="text-xs text-slate-500 font-medium">คน</span>
+              </div>
+            </div>
+          </div>
+
+          {/* ตารางแสดงนักศึกษาและชั่วโมงสะสมล่าสุด */}
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="font-bold text-slate-900 text-base flex items-center gap-2">
+                <Users className="w-5 h-5 text-indigo-600" />
+                <span>รายชื่อนักศึกษาและชั่วโมงสะสมรวม</span>
+              </h3>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-xs font-bold text-slate-500 uppercase border-b border-slate-100">
+                  <tr>
+                    <th className="py-3 px-4">รหัสนักศึกษา</th>
+                    <th className="py-3 px-4">ชื่อ-นามสกุล</th>
+                    <th className="py-3 px-4">สาขาวิชา</th>
+                    <th className="py-3 px-4 text-center">ชั้นปี</th>
+                    <th className="py-3 px-4 text-center">ชั่วโมงสะสม</th>
+                    <th className="py-3 px-4 text-center">สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {students.map((st) => {
+                    const stRecords = records.filter((r) => r.studentId === st.studentId);
+                    const hrs = stRecords.reduce((sum, r) => sum + r.hoursEarned, 0);
+                    return (
+                      <tr key={st.studentId} className="hover:bg-slate-50/50">
+                        <td className="py-3 px-4 font-mono font-semibold text-slate-800">{st.studentId}</td>
+                        <td className="py-3 px-4 font-medium text-slate-900">{st.name}</td>
+                        <td className="py-3 px-4 text-slate-600">{st.major}</td>
+                        <td className="py-3 px-4 text-center">ปี {st.yearLevel}</td>
+                        <td className="py-3 px-4 text-center font-bold text-indigo-600">{hrs} ชม.</td>
+                        <td className="py-3 px-4 text-center">
+                          {hrs >= 60 ? (
+                            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                              ผ่านเกณฑ์
+                            </span>
+                          ) : (
+                            <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                              ยังไม่ครบ ({60 - hrs})
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 2: ส่งออกรายงานสรุปผล (Excel Export) */}
       {tab === 'reports' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border p-6">
-            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-4">
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8">
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2 mb-2">
               <Filter className="w-5 h-5 text-indigo-600" />
-              <span>ตัวกรองและส่งออกรายงานสรุปผล (Excel)</span>
+              <span>ส่งออกรายงานสรุปผลกิจกรรม (Excel Format)</span>
             </h2>
+            <p className="text-slate-500 text-xs mb-6">
+              เลือกเงื่อนไขเพื่อสร้างไฟล์สรุปผล Excel ที่พร้อมนำส่งฝ่ายทะเบียน หรือนำไปประชุมประเมินผล
+            </p>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 mb-1">
-                  รูปแบบการสรุปรายงาน
-                </label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">รูปแบบการสรุปรายงาน</label>
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value as 'all' | 'year' | 'major')}
-                  className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="w-full p-3 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                 >
-                  <option value="all">นักศึกษาทั้งหมด (ทุกชั้นปี/ทุกสาขา)</option>
+                  <option value="all">นักศึกษาทั้งหมด (ทุกชั้นปี / ทุกสาขา)</option>
                   <option value="year">สรุปผลแยกตามชั้นปี</option>
                   <option value="major">สรุปผลแยกตามสาขาวิชา</option>
                 </select>
@@ -260,13 +485,11 @@ export default function AdminPortal() {
 
               {filterType === 'year' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">
-                    เลือกชั้นปี
-                  </label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">เลือกชั้นปี</label>
                   <select
                     value={selectedYear}
                     onChange={(e) => setSelectedYear(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full p-3 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                   >
                     <option value="1">ชั้นปีที่ 1</option>
                     <option value="2">ชั้นปีที่ 2</option>
@@ -278,18 +501,14 @@ export default function AdminPortal() {
 
               {filterType === 'major' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-500 mb-1">
-                    เลือกสาขาวิชา
-                  </label>
+                  <label className="block text-xs font-bold text-slate-600 mb-1.5">เลือกสาขาวิชา</label>
                   <select
                     value={selectedMajor}
                     onChange={(e) => setSelectedMajor(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    className="w-full p-3 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                   >
                     {majors.map((m) => (
-                      <option key={m} value={m}>
-                        {m}
-                      </option>
+                      <option key={m} value={m}>{m}</option>
                     ))}
                   </select>
                 </div>
@@ -298,145 +517,119 @@ export default function AdminPortal() {
 
             <button
               onClick={handleDownloadReport}
-              className="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition shadow-md cursor-pointer"
+              className="flex items-center gap-2.5 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold rounded-2xl transition shadow-lg shadow-emerald-600/20 cursor-pointer"
             >
               <FileSpreadsheet className="w-5 h-5" />
               <span>ดาวน์โหลดไฟล์สรุปผล Excel (.xlsx)</span>
             </button>
           </div>
-
-          {/* รายชื่อกิจกรรมล่าสุดในระบบ */}
-          <div className="bg-white rounded-2xl shadow-sm border p-6">
-            <h3 className="font-bold text-slate-800 mb-4 flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-indigo-600" />
-                <span>กิจกรรมทั้งหมดในระบบ ({activities.length} รายการ)</span>
-              </span>
-            </h3>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600">
-                <thead className="bg-slate-50 border-b text-xs font-semibold text-slate-500 uppercase">
-                  <tr>
-                    <th className="py-3 px-4">รหัส</th>
-                    <th className="py-3 px-4">ชื่อกิจกรรม</th>
-                    <th className="py-3 px-4">หมวดหมู่</th>
-                    <th className="py-3 px-4">วันที่จัด</th>
-                    <th className="py-3 px-4 text-center">ชั่วโมง</th>
-                    <th className="py-3 px-4">สถานที่</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {activities.map((act) => (
-                    <tr key={act.id} className="hover:bg-slate-50/50">
-                      <td className="py-3 px-4 font-mono text-xs text-slate-500">{act.id}</td>
-                      <td className="py-3 px-4 font-medium text-slate-800">{act.title}</td>
-                      <td className="py-3 px-4">
-                        <span className="inline-block px-2 py-0.5 rounded text-xs bg-slate-100 text-slate-600">
-                          {act.category}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-xs text-slate-500">{act.date}</td>
-                      <td className="py-3 px-4 text-center font-bold text-indigo-600">{act.hours} ชม.</td>
-                      <td className="py-3 px-4 text-xs text-slate-500">{act.location}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
       )}
 
-      {/* แท็บที่ 2: บันทึกการเข้าร่วม (Attendance / Check-in) */}
+      {/* Tab 3: เช็คชื่อ/ให้ชั่วโมง พร้อมตัวสแกน QR Code */}
       {tab === 'attendance' && (
-        <div className="bg-white rounded-2xl shadow-sm border p-6">
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-2">
-            <UserCheck className="w-5 h-5 text-indigo-600" />
-            <span>เช็คชื่อและให้ชั่วโมงกิจกรรมแก่นักศึกษา</span>
-          </h2>
-          <p className="text-xs text-slate-500 mb-6">
-            เลือกรอบกิจกรรม และนำรหัสนักศึกษามาวาง (สามารถคัดลอกจาก Excel หรือสแกนบาร์โค้ด/QR เข้ามาได้)
-          </p>
-
-          <form onSubmit={handleRecordAttendance} className="space-y-4">
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                เลือกกิจกรรมที่จัดขึ้น *
+              <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                <UserCheck className="w-5 h-5 text-indigo-600" />
+                <span>เช็คชื่อและให้ชั่วโมงกิจกรรมแก่นักศึกษา</span>
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                เปิดกล้องสแกน QR Code นศ. หรือคัดลอกรหัสจาก Excel มาวาง
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsScannerOpen(true)}
+              className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 font-bold text-sm transition cursor-pointer shadow-sm"
+            >
+              <Camera className="w-5 h-5" />
+              <span>เปิดกล้องสแกน QR Code</span>
+            </button>
+          </div>
+
+          <form onSubmit={handleRecordAttendance} className="space-y-5">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1.5">
+                เลือกกิจกรรมที่ต้องการบันทึก *
               </label>
               <select
                 value={selectedActivityId}
                 onChange={(e) => setSelectedActivityId(e.target.value)}
-                className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 font-medium"
                 required
               >
                 {activities.map((act) => (
                   <option key={act.id} value={act.id}>
-                    [{act.id}] {act.title} ({act.hours} ชั่วโมง - {act.category})
+                    [{act.id}] {act.title} (+{act.hours} ชม. - {act.category})
                   </option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                รหัสนักศึกษาที่เข้าร่วม (คัดลอกมาวางได้หลายคน เช่น ขึ้นบรรทัดใหม่ หรือเว้นวรรค) *
-              </label>
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="block text-xs font-bold text-slate-600">
+                  รหัสนักศึกษาที่เข้าร่วม (ขึ้นบรรทัดใหม่ หรือเว้นวรรค) *
+                </label>
+                <span className="text-xs font-semibold text-indigo-600">
+                  จำนวน: {studentIdsInput.split(/[\n, ]+/).filter(Boolean).length} คน
+                </span>
+              </div>
               <textarea
                 rows={6}
                 value={studentIdsInput}
                 onChange={(e) => setStudentIdsInput(e.target.value)}
-                placeholder="6601001&#10;6601002&#10;6601003"
-                className="w-full p-3 rounded-xl border border-slate-200 font-mono text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                placeholder="6601001&#10;6701001"
+                className="w-full p-3.5 rounded-2xl border border-slate-200 font-mono text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                 required
               />
-              <p className="text-xs text-slate-400 mt-1">
-                * ระบบจะทำการแมปรหัสและคำนวณชั่วโมงพร้อมบันทึกลงแผ่นงาน Google Sheets โดยอัตโนมัติ
-              </p>
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition shadow-md disabled:bg-indigo-300 cursor-pointer flex items-center gap-2"
+              className="px-7 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-2xl transition shadow-lg shadow-indigo-600/20 disabled:bg-indigo-300 cursor-pointer flex items-center gap-2"
             >
-              {loading ? 'กำลังบันทึกลง Google Sheets...' : 'บันทึกการเข้าร่วมและให้ชั่วโมง'}
+              {loading ? 'กำลังบันทึกลง Google Sheets...' : 'บันทึกการเข้าร่วมและให้ชั่วโมงทันที'}
             </button>
           </form>
         </div>
       )}
 
-      {/* แท็บที่ 3: สร้างกิจกรรมใหม่ */}
+      {/* Tab 4: สร้างกิจกรรมใหม่ */}
       {tab === 'create_activity' && (
-        <div className="bg-white rounded-2xl shadow-sm border p-6">
-          <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-2">
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8">
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2 mb-2">
             <PlusCircle className="w-5 h-5 text-indigo-600" />
             <span>สร้างกิจกรรมใหม่และระบุชั่วโมง</span>
           </h2>
           <p className="text-xs text-slate-500 mb-6">
-            ข้อมูลกิจกรรมจะถูกบันทึกลงตาราง Google Sheets แผ่นงาน `Activities`
+            ข้อมูลกิจกรรมจะถูกบันทึกตรงลงแผ่นงาน Google Sheets `Activities` แบบ Real-time
           </p>
 
           <form onSubmit={handleCreateActivity} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-600 mb-1">ชื่อกิจกรรม *</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">ชื่อกิจกรรม *</label>
                 <input
                   type="text"
                   value={activityForm.title}
                   onChange={(e) => setActivityForm({ ...activityForm, title: e.target.value })}
-                  placeholder="เช่น สัมมนาเตรียมความพร้อมสู่การทำงาน"
-                  className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  placeholder="เช่น โครงการเสริมสร้างทักษะดิจิทัลสำหรับบัณฑิตใหม่"
+                  className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">หมวดกิจกรรม *</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">หมวดกิจกรรม *</label>
                 <select
                   value={activityForm.category}
                   onChange={(e) => setActivityForm({ ...activityForm, category: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                 >
                   <option value="มหาวิทยาลัย">มหาวิทยาลัย</option>
                   <option value="คณะ/สาขา">คณะ/สาขา</option>
@@ -446,60 +639,49 @@ export default function AdminPortal() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">จำนวนชั่วโมงที่ได้รับ *</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">จำนวนชั่วโมงที่ได้รับ *</label>
                 <input
                   type="number"
                   min="1"
                   max="100"
                   value={activityForm.hours}
                   onChange={(e) => setActivityForm({ ...activityForm, hours: Number(e.target.value) })}
-                  className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">วันที่จัดกิจกรรม *</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">วันที่จัดกิจกรรม *</label>
                 <input
                   type="date"
                   value={activityForm.date}
                   onChange={(e) => setActivityForm({ ...activityForm, date: e.target.value })}
-                  className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1">ปีการศึกษา *</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">ปีการศึกษา *</label>
                 <input
                   type="text"
                   value={activityForm.academicYear}
                   onChange={(e) => setActivityForm({ ...activityForm, academicYear: e.target.value })}
                   placeholder="เช่น 2567"
-                  className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                   required
                 />
               </div>
 
               <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-600 mb-1">สถานที่จัดกิจกรรม</label>
+                <label className="block text-xs font-bold text-slate-600 mb-1.5">สถานที่จัดกิจกรรม</label>
                 <input
                   type="text"
                   value={activityForm.location}
                   onChange={(e) => setActivityForm({ ...activityForm, location: e.target.value })}
-                  placeholder="เช่น อาคารเรียนรวม 3 ห้อง 301"
-                  className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-slate-600 mb-1">รายละเอียดกิจกรรมเพิ่มเติม</label>
-                <textarea
-                  rows={3}
-                  value={activityForm.description}
-                  onChange={(e) => setActivityForm({ ...activityForm, description: e.target.value })}
-                  placeholder="ระบุวัตถุประสงค์ หรือหมายเหตุอื่นๆ"
-                  className="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  placeholder="เช่น ห้องสัมมนา อาคาร 50 ปี"
+                  className="w-full p-3.5 rounded-2xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
                 />
               </div>
             </div>
@@ -507,13 +689,20 @@ export default function AdminPortal() {
             <button
               type="submit"
               disabled={loading}
-              className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl transition shadow-md disabled:bg-indigo-300 cursor-pointer flex items-center gap-2"
+              className="px-7 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-2xl transition shadow-lg shadow-indigo-600/20 disabled:bg-indigo-300 cursor-pointer flex items-center gap-2"
             >
-              {loading ? 'กำลังบันทึก...' : 'บันทึกกิจกรรมใหม่'}
+              {loading ? 'กำลังบันทึก...' : 'บันทึกกิจกรรมใหม่ลง Google Sheets'}
             </button>
           </form>
         </div>
       )}
+
+      {/* Modal เปิดกล้องสแกน QR Code */}
+      <QRScannerModal
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={handleScanSuccess}
+      />
     </div>
   );
 }
