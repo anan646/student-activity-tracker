@@ -16,9 +16,10 @@ import {
   QrCode, 
   Sparkles, 
   GraduationCap,
-  Layers,
-  ChevronRight,
-  User
+  ExternalLink,
+  ShieldCheck,
+  Zap,
+  ArrowRight
 } from 'lucide-react';
 import { StudentSummary } from '@/types';
 
@@ -27,9 +28,9 @@ export default function StudentPortal() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<StudentSummary | null>(null);
-  const [showQR, setShowQR] = useState(false);
+  const [passTab, setPassTab] = useState<'card' | 'history'>('card');
 
-  const TARGET_HOURS = 60; // เกณฑ์สะสม 60 ชม.
+  const TARGET_HOURS = 60; // เกณฑ์ 60 ชม.
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +44,7 @@ export default function StudentPortal() {
       const json = await res.json();
 
       if (!res.ok) {
-        throw new Error(json.error || 'ไม่พบข้อมูลนักศึกษารหัสนี้ในระบบ');
+        throw new Error(json.error || 'ไม่พบข้อมูลนักศึกษารหัสนี้ในระบบ UniPass');
       }
 
       setData(json);
@@ -59,42 +60,36 @@ export default function StudentPortal() {
     }
   };
 
-  // ธีมสีม่วงหลากหลายเฉดตามหมวดกิจกรรม
   const getCategoryTheme = (category: string) => {
     switch (category) {
       case 'มหาวิทยาลัย':
         return {
           icon: <Award className="w-5 h-5 text-purple-600" />,
           cardBg: 'bg-purple-50/70 border-purple-200/70 text-purple-950',
-          badgeBg: 'bg-purple-100 text-purple-700',
           numberColor: 'text-purple-700',
         };
       case 'คณะ/สาขา':
         return {
           icon: <Briefcase className="w-5 h-5 text-indigo-600" />,
           cardBg: 'bg-indigo-50/70 border-indigo-200/70 text-indigo-950',
-          badgeBg: 'bg-indigo-100 text-indigo-700',
           numberColor: 'text-indigo-700',
         };
       case 'บำเพ็ญประโยชน์/จิตอาสา':
         return {
           icon: <HeartHandshake className="w-5 h-5 text-fuchsia-600" />,
           cardBg: 'bg-fuchsia-50/70 border-fuchsia-200/70 text-fuchsia-950',
-          badgeBg: 'bg-fuchsia-100 text-fuchsia-700',
           numberColor: 'text-fuchsia-700',
         };
       case 'ส่งเสริมวิชาการ/วิชาชีพ':
         return {
           icon: <BookOpen className="w-5 h-5 text-violet-600" />,
           cardBg: 'bg-violet-50/70 border-violet-200/70 text-violet-950',
-          badgeBg: 'bg-violet-100 text-violet-700',
           numberColor: 'text-violet-700',
         };
       default:
         return {
           icon: <Clock className="w-5 h-5 text-slate-600" />,
           cardBg: 'bg-slate-50 border-slate-200 text-slate-800',
-          badgeBg: 'bg-slate-100 text-slate-700',
           numberColor: 'text-slate-800',
         };
     }
@@ -103,23 +98,23 @@ export default function StudentPortal() {
   const percentage = data ? Math.min(100, Math.round((data.totalHours / TARGET_HOURS) * 100)) : 0;
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8 sm:py-14">
-      {/* Hero Section */}
-      <div className="text-center mb-10 sm:mb-14">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full purple-badge text-purple-800 text-xs font-bold mb-4 shadow-sm animate-in fade-in">
-          <Sparkles className="w-3.5 h-3.5 text-purple-600 animate-pulse" />
-          <span>ระบบตรวจสอบชั่วโมงกิจกรรมออนไลน์ • มหาวิทยาลัยฟาฏอนี</span>
+    <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12">
+      {/* Hero Section สไตล์ UniPass FTU */}
+      <div className="text-center mb-10">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-purple-100 to-fuchsia-100 border border-purple-200 text-purple-900 text-xs font-bold mb-4 shadow-sm animate-in fade-in">
+          <Zap className="w-3.5 h-3.5 text-purple-600" />
+          <span>Fatoni University • UniPass Digital Student Pass & Activity System</span>
         </div>
         <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-purple-950 mb-3">
-          สะสมชั่วโมง <span className="bg-gradient-to-r from-purple-600 via-fuchsia-600 to-indigo-600 bg-clip-text text-transparent">กิจกรรมนักศึกษา</span>
+          UniPass <span className="bg-gradient-to-r from-purple-600 via-fuchsia-600 to-indigo-600 bg-clip-text text-transparent">บัตรกิจกรรมดิจิทัล</span>
         </h1>
         <p className="text-purple-900/60 text-sm sm:text-base max-w-xl mx-auto font-normal">
-          ตรวจสอบความคืบหน้าของตนเอง ดาวน์โหลดใบทรานสคริปต์ และแสดงบัตร QR Code ประจำตัวเพื่อเข้าร่วมกิจกรรม
+          ระบบเช็คอินด้วย QR Code และตรวจสอบชั่วโมงกิจกรรมนักศึกษา มหาวิทยาลัยฟาฏอนี
         </p>
       </div>
 
-      {/* กล่องค้นหา (Search Box) Minimal Purple */}
-      <div className="bg-white/90 backdrop-blur-xl rounded-3xl shadow-xl shadow-purple-900/5 border border-purple-100 p-4 sm:p-6 mb-10 max-w-xl mx-auto">
+      {/* กล่องค้นหา (Search Box) UniPass Minimal */}
+      <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-xl shadow-purple-900/5 border border-purple-100 p-4 sm:p-6 mb-10 max-w-xl mx-auto">
         <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-2.5">
           <div className="relative flex-1">
             <input
@@ -135,12 +130,12 @@ export default function StudentPortal() {
           <button
             type="submit"
             disabled={loading}
-            className="px-7 py-3.5 bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 hover:opacity-95 active:scale-95 text-white font-bold rounded-2xl transition-all shadow-md shadow-purple-600/25 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer text-sm sm:text-base"
+            className="px-7 py-3.5 bg-gradient-to-r from-purple-700 via-purple-800 to-indigo-700 hover:opacity-95 active:scale-95 text-white font-bold rounded-2xl transition shadow-md shadow-purple-700/25 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer text-sm sm:text-base"
           >
             {loading ? (
               <span className="inline-block animate-spin text-base">⏳</span>
             ) : (
-              <span>ตรวจสอบ</span>
+              <span>เปิดบัตร UniPass</span>
             )}
           </button>
         </form>
@@ -153,7 +148,7 @@ export default function StudentPortal() {
         )}
 
         <div className="mt-3.5 text-xs text-purple-900/40 text-center flex flex-wrap items-center justify-center gap-1.5">
-          <span>💡 ทดลองคลิกตรวจรหัสจริง:</span>
+          <span>💡 นักศึกษาตัวอย่างในระบบ:</span>
           <button 
             type="button"
             onClick={() => setStudentId('661441001')}
@@ -172,113 +167,96 @@ export default function StudentPortal() {
         </div>
       </div>
 
-      {/* ผลลัพธ์ข้อมูลนักศึกษา */}
+      {/* ผลลัพธ์ข้อมูล: FTU Virtual UniPass Card */}
       {data && (
-        <div className="space-y-6 sm:space-y-8 animate-in fade-in duration-300">
-          {/* Card ข้อมูลส่วนตัว & ความคืบหน้า */}
+        <div className="space-y-8 animate-in fade-in duration-300">
+          {/* Virtual Student Card (บัตรนักศึกษาดิจิทัล UniPass เสมือนจริง) */}
+          <div className="max-w-md mx-auto bg-gradient-to-br from-purple-900 via-indigo-950 to-purple-950 text-white rounded-3xl p-6 sm:p-7 shadow-2xl shadow-purple-950/30 border border-purple-500/20 relative overflow-hidden">
+            {/* Background Glow Accents */}
+            <div className="absolute top-0 right-0 w-44 h-44 bg-fuchsia-500/15 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-44 h-44 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Card Header */}
+            <div className="flex justify-between items-start mb-6 relative z-10">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-inner">
+                  <GraduationCap className="w-6 h-6 text-purple-200" />
+                </div>
+                <div>
+                  <h3 className="font-black text-sm tracking-wide text-white">FATONI UNIVERSITY</h3>
+                  <p className="text-[10px] text-purple-200/70 font-semibold tracking-widest uppercase">Student UniPass ID</p>
+                </div>
+              </div>
+
+              <div className="px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[10px] font-bold text-purple-200">
+                ปีการศึกษา {data.student.academicYear}
+              </div>
+            </div>
+
+            {/* QR Code Center Section */}
+            <div className="my-4 text-center relative z-10">
+              <div className="p-3.5 bg-white rounded-2xl inline-block shadow-lg">
+                <QRCode value={data.student.studentId} size={150} />
+              </div>
+              <p className="mt-3 font-mono font-black text-xl tracking-widest text-white">{data.student.studentId}</p>
+              <h2 className="text-lg font-bold text-purple-100">{data.student.name}</h2>
+              <p className="text-xs font-semibold text-purple-300">
+                สาขาวิชา{data.student.major} • ชั้นปีที่ {data.student.yearLevel}
+              </p>
+            </div>
+
+            {/* Card Footer: Hours Badge */}
+            <div className="mt-6 pt-4 border-t border-white/10 flex justify-between items-center relative z-10">
+              <div>
+                <span className="text-[10px] text-purple-200/60 uppercase block font-bold">ชั่วโมงสะสมรวม</span>
+                <span className="text-xl font-black text-white">{data.totalHours} <span className="text-xs font-normal text-purple-300">/ {TARGET_HOURS} ชม.</span></span>
+              </div>
+
+              <div>
+                {data.totalHours >= TARGET_HOURS ? (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" /> ครบเกณฑ์แล้ว
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 rounded-full text-xs font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/30 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5" /> ขาดอีก {TARGET_HOURS - data.totalHours} ชม.
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions Bar */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <a
+              href={`/api/export?type=student&studentId=${data.student.studentId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-md shadow-emerald-600/20 active:scale-95"
+            >
+              <Download className="w-4 h-4" />
+              <span>ดาวน์โหลด Activity Transcript (Excel)</span>
+            </a>
+
+            <a
+              href="https://unipass.ftu.ac.th/"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-purple-200 bg-white hover:bg-purple-50 text-purple-900 text-xs sm:text-sm font-bold transition shadow-sm"
+            >
+              <span>ไปยัง UniPass Portal หลัก</span>
+              <ExternalLink className="w-3.5 h-3.5 text-purple-500" />
+            </a>
+          </div>
+
+          {/* สรุปชั่วโมง 4 หมวดหมู่กิจกรรม */}
           <div className="bg-white rounded-3xl shadow-xl shadow-purple-950/5 border border-purple-100 p-6 sm:p-8">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-purple-50">
-              <div className="flex items-start sm:items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-700 via-purple-600 to-indigo-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-purple-600/20">
-                  <GraduationCap className="w-8 h-8" />
-                </div>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 mb-1">
-                    <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-lg bg-purple-100 text-purple-800">
-                      ID: {data.student.studentId}
-                    </span>
-                    <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-purple-50 text-purple-700 border border-purple-200/50">
-                      ชั้นปีที่ {data.student.yearLevel}
-                    </span>
-                  </div>
-                  <h2 className="text-2xl font-black text-purple-950">{data.student.name}</h2>
-                  <p className="text-sm font-semibold text-purple-700 mt-0.5">
-                    สาขาวิชา{data.student.major} <span className="text-purple-300">•</span> ปีการศึกษา {data.student.academicYear}
-                  </p>
-                </div>
-              </div>
+            <h3 className="font-extrabold text-purple-950 text-base sm:text-lg mb-4 flex items-center gap-2">
+              <Award className="w-5 h-5 text-purple-600" />
+              <span>สถิติชั่วโมงกิจกรรมแยกตามหมวดหมู่</span>
+            </h3>
 
-              {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-                <button
-                  onClick={() => setShowQR(!showQR)}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-purple-200 bg-white hover:bg-purple-50/50 text-purple-800 text-xs sm:text-sm font-bold transition shadow-sm cursor-pointer"
-                >
-                  <QrCode className="w-4 h-4 text-purple-600" />
-                  <span>{showQR ? 'ซ่อนบัตร QR' : 'แสดงบัตร QR Code'}</span>
-                </button>
-
-                <a
-                  href={`/api/export?type=student&studentId=${data.student.studentId}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 active:scale-95 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-md shadow-emerald-600/20"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Export Excel (.xlsx)</span>
-                </a>
-              </div>
-            </div>
-
-            {/* กล่องแสดงบัตร QR Code */}
-            {showQR && (
-              <div className="my-6 p-6 rounded-3xl bg-gradient-to-b from-purple-50/80 to-indigo-50/40 border border-purple-200/70 text-center animate-in zoom-in-95">
-                <h4 className="text-sm font-bold text-purple-950 mb-1">บัตรนักศึกษาดิจิทัลสำหรับเช็คชื่อกิจกรรม</h4>
-                <p className="text-xs text-purple-900/60 mb-5">แสดง QR Code นี้ให้เจ้าหน้าที่หน้างานสแกนบันทึกชั่วโมง</p>
-                <div className="p-4 bg-white rounded-2xl inline-block shadow-md shadow-purple-950/5 border border-purple-100">
-                  <QRCode value={data.student.studentId} size={160} />
-                </div>
-                <p className="mt-3.5 font-mono font-black text-purple-950 text-lg tracking-wider">{data.student.studentId}</p>
-                <p className="text-xs font-semibold text-purple-700">{data.student.name} • {data.student.major}</p>
-              </div>
-            )}
-
-            {/* แถบ Progress สะสมชั่วโมง */}
-            <div className="mt-8">
-              <div className="flex justify-between items-end mb-2.5">
-                <div>
-                  <span className="text-[11px] font-bold text-purple-900/50 uppercase tracking-wider block mb-0.5">
-                    ความคืบหน้าชั่วโมงกิจกรรมสะสม
-                  </span>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-3xl sm:text-4xl font-black text-purple-950">{data.totalHours}</span>
-                    <span className="text-purple-900/40 text-sm font-bold">/ {TARGET_HOURS} ชั่วโมง</span>
-                  </div>
-                </div>
-
-                <div className="text-right">
-                  <span className="text-2xl sm:text-3xl font-black bg-gradient-to-r from-purple-600 to-fuchsia-600 bg-clip-text text-transparent">
-                    {percentage}%
-                  </span>
-                </div>
-              </div>
-
-              {/* Progress Bar Gradient */}
-              <div className="w-full bg-purple-100/60 rounded-full h-4 overflow-hidden p-0.5">
-                <div
-                  className="bg-gradient-to-r from-purple-600 via-fuchsia-600 to-indigo-600 h-full rounded-full transition-all duration-700 shadow-sm"
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
-
-              <div className="mt-3 flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs gap-2">
-                <div>
-                  {data.totalHours >= TARGET_HOURS ? (
-                    <span className="text-emerald-700 font-bold flex items-center gap-1.5 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> ครบตามเกณฑ์ชั่วโมงกิจกรรมขั้นต่ำสำหรับจบการศึกษาแล้ว
-                    </span>
-                  ) : (
-                    <span className="text-purple-800 font-bold flex items-center gap-1.5 bg-purple-50 px-3 py-1 rounded-full border border-purple-200">
-                      <Clock className="w-3.5 h-3.5 text-purple-600" /> ยังขาดอีก {TARGET_HOURS - data.totalHours} ชั่วโมง จึงจะครบเกณฑ์
-                    </span>
-                  )}
-                </div>
-                <span className="text-purple-900/40 font-medium">เกณฑ์บังคับตลอดหลักสูตร: {TARGET_HOURS} ชั่วโมง</span>
-              </div>
-            </div>
-
-            {/* การ์ดสถิติแยกตามหมวดหมู่ (เฉดสีม่วงหลากสไตล์) */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 mt-8">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4">
               {Object.entries(data.hoursByCategory).map(([cat, hrs]) => {
                 const theme = getCategoryTheme(cat);
                 return (
@@ -297,14 +275,14 @@ export default function StudentPortal() {
             </div>
           </div>
 
-          {/* รายการประวัติกิจกรรมที่เข้าร่วม */}
+          {/* รายการประวัติการเข้าร่วมกิจกรรม */}
           <div className="bg-white rounded-3xl shadow-xl shadow-purple-950/5 border border-purple-100 overflow-hidden">
             <div className="p-6 border-b border-purple-50 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-purple-50 rounded-xl">
                   <Calendar className="w-5 h-5 text-purple-600" />
                 </div>
-                <h3 className="font-extrabold text-purple-950 text-base sm:text-lg">ประวัติกิจกรรมที่เข้าร่วม</h3>
+                <h3 className="font-extrabold text-purple-950 text-base sm:text-lg">ประวัติกิจกรรมที่ได้รับการเช็คอิน</h3>
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800">
                   {data.records.length} รายการ
                 </span>
@@ -314,8 +292,8 @@ export default function StudentPortal() {
             {data.records.length === 0 ? (
               <div className="py-16 text-center text-purple-900/40">
                 <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30 text-purple-600" />
-                <p className="font-bold text-purple-900/60">ยังไม่พบประวัติการเข้าร่วมกิจกรรม</p>
-                <p className="text-xs text-purple-900/40 mt-1">เมื่อเข้าร่วมและได้รับการบันทึก ชั่วโมงจะแสดงขึ้นที่นี่</p>
+                <p className="font-bold text-purple-900/60">ยังไม่มีประวัติการเช็คอินกิจกรรม</p>
+                <p className="text-xs text-purple-900/40 mt-1">เมื่อแสดงบัตร UniPass เพื่อสแกนหน้างาน ชั่วโมงจะแสดงขึ้นที่นี่</p>
               </div>
             ) : (
               <div className="divide-y divide-purple-50">
@@ -341,7 +319,7 @@ export default function StudentPortal() {
                       <div>
                         {rec.status === 'APPROVED' ? (
                           <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> อนุมัติแล้ว
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> เช็คอินแล้ว
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
