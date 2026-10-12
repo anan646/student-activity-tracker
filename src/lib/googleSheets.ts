@@ -1,4 +1,5 @@
 import { Student, Activity, AttendanceRecord } from '@/types';
+import { getMajorFromStudentId } from '@/lib/ftuCrawler';
 
 const APPS_SCRIPT_URL =
   process.env.GOOGLE_APPS_SCRIPT_URL ||
@@ -58,13 +59,26 @@ export async function getStudents(): Promise<Student[]> {
   const data = await fetchFromAppsScript();
   if (!data || !data.students) return [];
 
-  return data.students.map((s) => ({
-    studentId: String(s.StudentID).trim(),
-    name: String(s.Name || '').trim(),
-    major: String(s.Major || '').trim(),
-    academicYear: String(s.AcademicYear || '').trim(),
-    yearLevel: Number(s.YearLevel || 1),
-  }));
+  return data.students.map((s) => {
+    const sId = String(s.StudentID).trim();
+    let major = String(s.Major || '').trim();
+
+    // หากใน Google Sheet ยังเป็น "ไม่ระบุสาขา" หรือค่าว่าง ให้แปลงอัตโนมัติตามรหัส 3 หลักทันที
+    if (!major || major === 'ไม่ระบุสาขา') {
+      const resolved = getMajorFromStudentId(sId);
+      if (resolved && resolved !== 'ไม่ระบุสาขา') {
+        major = resolved;
+      }
+    }
+
+    return {
+      studentId: sId,
+      name: String(s.Name || '').trim(),
+      major: major || 'ไม่ระบุสาขา',
+      academicYear: String(s.AcademicYear || '').trim(),
+      yearLevel: Number(s.YearLevel || 1),
+    };
+  });
 }
 
 // 2. ดึงข้อมูลกิจกรรม
