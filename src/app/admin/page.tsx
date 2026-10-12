@@ -269,12 +269,12 @@ export default function AdminPortal() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-[75vh] flex items-center justify-center px-4">
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 max-w-sm w-full text-center">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-4 border border-indigo-100 shadow-inner">
+        <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl shadow-purple-950/10 border border-purple-100 p-8 max-w-sm w-full text-center animate-in zoom-in-95">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-purple-700 via-purple-600 to-indigo-600 text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-600/25">
             <Lock className="w-8 h-8" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-1">เข้าสู่ระบบผู้ดูแลระบบ</h2>
-          <p className="text-xs text-slate-500 mb-6">กรุณากรอกรหัสผ่านเพื่อเข้าใช้งานฟังก์ชันจัดการกิจกรรม</p>
+          <h2 className="text-xl font-black text-purple-950 mb-1">เข้าสู่ระบบผู้ดูแลระบบ</h2>
+          <p className="text-xs text-purple-900/50 mb-6">กรุณากรอกรหัสผ่านเพื่อเข้าใช้งานจัดการกิจกรรมและข้อมูล นศ.</p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -282,29 +282,29 @@ export default function AdminPortal() {
                 type="password"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                placeholder="กรอกรหัสผ่าน PIN (เช่น 1234)"
-                className="w-full text-center tracking-widest text-lg font-bold py-3.5 px-4 rounded-2xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600"
+                placeholder="กรอก PIN (เช่น 1234)"
+                className="w-full text-center tracking-widest text-xl font-black py-3.5 px-4 rounded-2xl border border-purple-100 bg-purple-50/40 focus:bg-white focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 text-purple-950 transition"
                 autoFocus
                 required
               />
             </div>
 
             {pinError && (
-              <p className="text-xs font-semibold text-red-600 animate-in fade-in">
+              <p className="text-xs font-bold text-rose-600 animate-in fade-in">
                 รหัสผ่านไม่ถูกต้อง (รหัสเริ่มต้นคือ: 1234)
               </p>
             )}
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-2xl transition shadow-lg shadow-indigo-600/20 cursor-pointer"
+              className="w-full py-3.5 bg-gradient-to-r from-purple-600 via-purple-700 to-indigo-600 hover:opacity-95 active:scale-95 text-white font-bold rounded-2xl transition shadow-lg shadow-purple-600/25 cursor-pointer"
             >
               เข้าสู่ระบบ
             </button>
           </form>
 
-          <p className="mt-4 text-[11px] text-slate-400">
-            * รหัสผ่านตั้งต้นสำหรับการทดสอบระบบ: <span className="font-mono font-bold text-slate-600">1234</span>
+          <p className="mt-4 text-[11px] text-purple-900/40">
+            * รหัสผ่านตั้งต้น: <span className="font-mono font-bold text-purple-800">1234</span>
           </p>
         </div>
       </div>
@@ -312,21 +312,21 @@ export default function AdminPortal() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
+    <div className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
       {/* Top Banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
               Live Connected with Google Sheets
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            ระบบจัดการกิจกรรมและออกรายงาน (Staff & Admin)
+          <h1 className="text-2xl sm:text-3xl font-black text-purple-950 tracking-tight">
+            ระบบจัดการกิจกรรมและรายงาน (Admin Portal)
           </h1>
-          <p className="text-slate-500 text-sm mt-1">
-            เพิ่มกิจกรรม เช็คชื่อนักศึกษาผ่านกล้อง และส่งออกรายงานสรุปผลตามเกณฑ์
+          <p className="text-purple-900/50 text-xs sm:text-sm mt-0.5">
+            จัดการกิจกรรม เช็คชื่อนักศึกษาผ่านกล้อง และส่งออกรายงานสรุปผลตามเกณฑ์
           </p>
         </div>
 
@@ -334,14 +334,14 @@ export default function AdminPortal() {
           <button
             onClick={fetchInitialData}
             disabled={refreshing}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-semibold transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-purple-200/80 bg-white hover:bg-purple-50 text-purple-800 text-xs font-bold transition shadow-sm cursor-pointer"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-indigo-600' : ''}`} />
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin text-purple-600' : ''}`} />
             <span>ซิงค์ข้อมูล</span>
           </button>
           <button
             onClick={() => setIsAuthenticated(false)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold transition cursor-pointer"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-100/60 hover:bg-purple-100 text-purple-800 text-xs font-bold transition cursor-pointer"
           >
             <Unlock className="w-3.5 h-3.5" />
             <span>ออกจากระบบ</span>
@@ -349,52 +349,52 @@ export default function AdminPortal() {
         </div>
       </div>
 
-      {/* Main Tab Bar */}
-      <div className="flex bg-slate-200/80 p-1.5 rounded-2xl text-sm font-semibold mb-8 overflow-x-auto">
+      {/* Main Tab Bar (Refined Purple Aesthetic) */}
+      <div className="flex bg-purple-100/60 p-1.5 rounded-2xl text-xs sm:text-sm font-bold mb-8 overflow-x-auto gap-1">
         <button
           onClick={() => { setTab('analytics'); setMessage(null); }}
-          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
-            tab === 'analytics' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition-all ${
+            tab === 'analytics' ? 'bg-white text-purple-900 shadow-sm' : 'text-purple-900/60 hover:text-purple-950'
           }`}
         >
-          <BarChart3 className="w-4 h-4" />
+          <BarChart3 className="w-4 h-4 text-purple-600" />
           <span>แดชบอร์ดภาพรวม</span>
         </button>
         <button
           onClick={() => { setTab('reports'); setMessage(null); }}
-          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
-            tab === 'reports' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition-all ${
+            tab === 'reports' ? 'bg-white text-purple-900 shadow-sm' : 'text-purple-900/60 hover:text-purple-950'
           }`}
         >
-          <FileSpreadsheet className="w-4 h-4" />
+          <FileSpreadsheet className="w-4 h-4 text-indigo-600" />
           <span>สรุปผล & Export</span>
         </button>
         <button
           onClick={() => { setTab('attendance'); setMessage(null); }}
-          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
-            tab === 'attendance' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition-all ${
+            tab === 'attendance' ? 'bg-white text-purple-900 shadow-sm' : 'text-purple-900/60 hover:text-purple-950'
           }`}
         >
-          <UserCheck className="w-4 h-4" />
+          <UserCheck className="w-4 h-4 text-fuchsia-600" />
           <span>เช็คชื่อ/ให้ชั่วโมง</span>
         </button>
         <button
           onClick={() => { setTab('create_activity'); setMessage(null); }}
-          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
-            tab === 'create_activity' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+          className={`flex-1 min-w-[120px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition-all ${
+            tab === 'create_activity' ? 'bg-white text-purple-900 shadow-sm' : 'text-purple-900/60 hover:text-purple-950'
           }`}
         >
-          <PlusCircle className="w-4 h-4" />
+          <PlusCircle className="w-4 h-4 text-violet-600" />
           <span>สร้างกิจกรรมใหม่</span>
         </button>
         <button
           onClick={() => { setTab('import_ftu'); setMessage(null); }}
-          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
-            tab === 'import_ftu' ? 'bg-indigo-600 text-white shadow-sm' : 'text-indigo-700 hover:bg-indigo-100/50'
+          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition-all ${
+            tab === 'import_ftu' ? 'bg-gradient-to-r from-purple-700 to-indigo-700 text-white shadow-sm' : 'text-purple-900/70 hover:bg-white/50'
           }`}
         >
           <DownloadCloud className="w-4 h-4" />
-          <span>ดึงข้อมูลจาก สนง.ทะเบียน (FTU)</span>
+          <span>นำเข้า นศ. ทะเบียน (FTU)</span>
         </button>
       </div>
 
@@ -404,13 +404,13 @@ export default function AdminPortal() {
           className={`mb-6 p-4 rounded-2xl flex items-center gap-3 text-sm font-semibold animate-in fade-in ${
             message.type === 'success'
               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-              : 'bg-red-50 text-red-800 border border-red-200'
+              : 'bg-rose-50 text-rose-800 border border-rose-200'
           }`}
         >
           {message.type === 'success' ? (
             <CheckCircle2 className="w-5 h-5 shrink-0 text-emerald-600" />
           ) : (
-            <AlertCircle className="w-5 h-5 shrink-0 text-red-600" />
+            <AlertCircle className="w-5 h-5 shrink-0 text-rose-600" />
           )}
           <span>{message.text}</span>
         </div>
@@ -419,36 +419,36 @@ export default function AdminPortal() {
       {/* Tab 1: แดชบอร์ดภาพรวมสถิติ (Analytics Dashboard) */}
       {tab === 'analytics' && (
         <div className="space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-              <span className="text-xs font-bold text-slate-400 block mb-1">นักศึกษาในระบบ</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 sm:gap-4">
+            <div className="bg-white p-5 rounded-3xl border border-purple-100 shadow-sm">
+              <span className="text-[11px] font-bold text-purple-900/40 uppercase tracking-wider block mb-1">นักศึกษาในระบบ</span>
               <div className="flex items-baseline justify-between">
-                <span className="text-3xl font-black text-slate-800">{totalStudents}</span>
-                <span className="text-xs text-slate-500 font-medium">คน</span>
+                <span className="text-3xl sm:text-4xl font-black text-purple-950">{totalStudents}</span>
+                <span className="text-xs text-purple-900/50 font-bold">คน</span>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-              <span className="text-xs font-bold text-slate-400 block mb-1">กิจกรรมที่เปิดจัด</span>
+            <div className="bg-white p-5 rounded-3xl border border-purple-100 shadow-sm">
+              <span className="text-[11px] font-bold text-purple-900/40 uppercase tracking-wider block mb-1">กิจกรรมที่เปิดจัด</span>
               <div className="flex items-baseline justify-between">
-                <span className="text-3xl font-black text-indigo-600">{totalActivities}</span>
-                <span className="text-xs text-slate-500 font-medium">รายการ</span>
+                <span className="text-3xl sm:text-4xl font-black text-purple-700">{totalActivities}</span>
+                <span className="text-xs text-purple-900/50 font-bold">รายการ</span>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-              <span className="text-xs font-bold text-slate-400 block mb-1">การบันทึกชั่วโมงทั้งหมด</span>
+            <div className="bg-white p-5 rounded-3xl border border-purple-100 shadow-sm">
+              <span className="text-[11px] font-bold text-purple-900/40 uppercase tracking-wider block mb-1">การเช็คชื่อทั้งหมด</span>
               <div className="flex items-baseline justify-between">
-                <span className="text-3xl font-black text-emerald-600">{totalRecords}</span>
-                <span className="text-xs text-slate-500 font-medium">ครั้ง</span>
+                <span className="text-3xl sm:text-4xl font-black text-fuchsia-700">{totalRecords}</span>
+                <span className="text-xs text-purple-900/50 font-bold">ครั้ง</span>
               </div>
             </div>
 
-            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm">
-              <span className="text-xs font-bold text-slate-400 block mb-1">นศ. ที่ผ่านเกณฑ์สะสม (≥60 ชม.)</span>
+            <div className="bg-white p-5 rounded-3xl border border-purple-100 shadow-sm">
+              <span className="text-[11px] font-bold text-purple-900/40 uppercase tracking-wider block mb-1">ผ่านเกณฑ์ (≥60 ชม.)</span>
               <div className="flex items-baseline justify-between">
-                <span className="text-3xl font-black text-amber-600">{qualifiedStudentsCount}</span>
-                <span className="text-xs text-slate-500 font-medium">คน</span>
+                <span className="text-3xl sm:text-4xl font-black text-emerald-600">{qualifiedStudentsCount}</span>
+                <span className="text-xs text-purple-900/50 font-bold">คน</span>
               </div>
             </div>
           </div>
