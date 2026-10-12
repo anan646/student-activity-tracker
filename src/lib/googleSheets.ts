@@ -163,3 +163,31 @@ export async function recordAttendance(
     return { successCount: 0, failed: studentIds };
   }
 }
+
+// 6. นำเข้าข้อมูลนักศึกษาจำนวนมากลง Google Sheet
+export async function importStudents(
+  students: Student[]
+): Promise<{ successCount: number }> {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'import_students',
+        students,
+      }),
+      redirect: 'follow',
+    });
+
+    if (!res.ok) {
+      return { successCount: 0 };
+    }
+
+    const data = await res.json();
+    return { successCount: data.successCount || students.length };
+  } catch (err) {
+    console.error('Error importing students via Apps Script:', err);
+    return { successCount: 0 };
+  }
+}
+

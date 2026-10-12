@@ -20,7 +20,9 @@ import {
   Lock,
   Unlock,
   KeyRound,
-  RefreshCw
+  RefreshCw,
+  DownloadCloud,
+  FileCheck
 } from 'lucide-react';
 import { Student, Activity, AttendanceRecord } from '@/types';
 import QRScannerModal from '@/components/QRScannerModal';
@@ -30,12 +32,14 @@ export default function AdminPortal() {
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
 
-  const [tab, setTab] = useState<'analytics' | 'reports' | 'attendance' | 'create_activity'>('analytics');
+  const [tab, setTab] = useState<'analytics' | 'reports' | 'attendance' | 'create_activity' | 'import_ftu'>('analytics');
   const [activities, setActivities] = useState<Activity[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [syncingFtu, setSyncingFtu] = useState(false);
+  const [selectedSyncYears, setSelectedSyncYears] = useState<string[]>(['2565', '2566', '2567', '2568']);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Scanner Modal
@@ -213,6 +217,42 @@ export default function AdminPortal() {
     window.open(url, '_blank');
   };
 
+  // ดึงข้อมูลรายชื่อ นศ. จากระบบสำนักทะเบียน FTU
+  const handleSyncFTU = async () => {
+    if (selectedSyncYears.length === 0) {
+      setMessage({ text: 'กรุณาเลือกปีการศึกษาอย่างน้อย 1 ปี', type: 'error' });
+      return;
+    }
+
+    setSyncingFtu(true);
+    setMessage(null);
+
+    try {
+      const res = await fetch('/api/sync-ftu', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ acadYears: selectedSyncYears }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'ดึงข้อมูลไม่สำเร็จ');
+
+      setMessage({
+        text: `ดึงข้อมูลนักศึกษาจากระบบสำนักทะเบียนสำเร็จจำนวน ${data.totalCrawled} คน และบันทึกลงระบบแล้ว!`,
+        type: 'success',
+      });
+      fetchInitialData();
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setMessage({ text: err.message, type: 'error' });
+      } else {
+        setMessage({ text: 'เกิดข้อผิดพลาดในการดึงข้อมูลจากระบบสำนักทะเบียน', type: 'error' });
+      }
+    } finally {
+      setSyncingFtu(false);
+    }
+  };
+
   const majors = Array.from(new Set(students.map((s) => s.major)));
 
   // สถิติ Analytics
@@ -346,6 +386,15 @@ export default function AdminPortal() {
         >
           <PlusCircle className="w-4 h-4" />
           <span>สร้างกิจกรรมใหม่</span>
+        </button>
+        <button
+          onClick={() => { setTab('import_ftu'); setMessage(null); }}
+          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl transition ${
+            tab === 'import_ftu' ? 'bg-indigo-600 text-white shadow-sm' : 'text-indigo-700 hover:bg-indigo-100/50'
+          }`}
+        >
+          <DownloadCloud className="w-4 h-4" />
+          <span>ดึงข้อมูลจาก สนง.ทะเบียน (FTU)</span>
         </button>
       </div>
 
@@ -694,6 +743,83 @@ export default function AdminPortal() {
               {loading ? 'กำลังบันทึก...' : 'บันทึกกิจกรรมใหม่ลง Google Sheets'}
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Tab 5: ดึงข้อมูล นศ. อัตโนมัติจากสำนักทะเบียน FTU */}
+      {tab === 'import_ftu' && (
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 sm:p-8">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-700">
+              <DownloadCloud className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">
+                ดึงข้อมูลรายชื่อนักศึกษาจากระบบสำนักทะเบียน (FTU Registrar)
+              </h2>
+              <p className="text-xs text-slate-500">
+                เชื่อมต่อดึงข้อมูลโดยตรงจากระบบทะเบียนมหาวิทยาลัยฟาฏอนี (reg.ftu.ac.th) และบันทึกลง Google Sheets
+              </p>
+            </div>
+          </div>
+
+          <div className="my-6 p-5 rounded-2xl bg-slate-50 border border-slate-200">
+            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-3">
+              เลือกปีการศึกษาที่ต้องการดึงข้อมูล:
+            </h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {['2565', '2566', '2567', '2568'].map((year) => {
+                const isChecked = selectedSyncYears.includes(year);
+                return (
+                  <label
+                    key={year}
+                    className={`flex items-center gap-2.5 p-3.5 rounded-2xl border cursor-pointer transition select-none ${
+                      isChecked
+                        ? 'bg-indigo-50/70 border-indigo-300 text-indigo-900 font-bold'
+                        : 'bg-white border-slate-200 text-slate-600'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedSyncYears([...selectedSyncYears, year]);
+                        } else {
+                          setSelectedSyncYears(selectedSyncYears.filter((y) => y !== year));
+                        }
+                      }}
+                      className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                    />
+                    <span>ปีการศึกษา {year}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-[11px] text-slate-400 mt-3">
+              * ระบบจะส่งคำขอไปยังระบบทะเบียน คัดกรองรหัส นศ. ชื่อ-สกุล สาขาวิชา และคำนวณชั้นปีให้อัตโนมัติ
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row items-center gap-3">
+            <button
+              onClick={handleSyncFTU}
+              disabled={syncingFtu}
+              className="w-full sm:w-auto px-8 py-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold rounded-2xl transition shadow-lg shadow-indigo-600/20 disabled:bg-indigo-300 cursor-pointer flex items-center justify-center gap-2"
+            >
+              {syncingFtu ? (
+                <>
+                  <span className="inline-block animate-spin">⏳</span>
+                  <span>กำลังดึงข้อมูลจากระบบทะเบียน FTU...</span>
+                </>
+              ) : (
+                <>
+                  <DownloadCloud className="w-5 h-5" />
+                  <span>เริ่มดึงข้อมูลและบันทึกลงระบบทันที</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       )}
 
