@@ -34,10 +34,20 @@ import {
   Sparkles,
   Lock,
   ExternalLink,
-  Copy
+  Copy,
+  Tv,
+  Wifi,
+  WifiOff,
+  RotateCw,
+  Filter,
+  Shield,
+  PieChart
 } from 'lucide-react';
-import { Student, Activity, AttendanceRecord } from '@/types';
+import { Student, Activity, AttendanceRecord, UserRole } from '@/types';
 import QRScannerModal from '@/components/QRScannerModal';
+import ProjectorModeModal from '@/components/ProjectorModeModal';
+import { verifyQrPayload } from '@/lib/dynamicQr';
+import { playSuccessBeep, playWarningBeep } from '@/lib/audioFeedback';
 
 type MenuTab = 
   | 'home' 
@@ -50,8 +60,9 @@ type MenuTab =
   | 'share_links';
 
 export default function AdminPortal() {
-  // Authentication
+  // Authentication & RBAC
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userRole, setUserRole] = useState<'superadmin' | 'staff'>('superadmin');
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
 
@@ -69,6 +80,17 @@ export default function AdminPortal() {
 
   // Selected Activity Workspace
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
+
+  // Check-in Mode: Single, Round IN, Round OUT
+  const [currentCheckInType, setCurrentCheckInType] = useState<'SINGLE' | 'IN' | 'OUT'>('SINGLE');
+
+  // Network & Offline Queue
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [offlineQueue, setOfflineQueue] = useState<AttendanceRecord[]>([]);
+
+  // Projector Mode Display
+  const [isProjectorOpen, setIsProjectorOpen] = useState(false);
+  const [projectorActivity, setProjectorActivity] = useState<Activity | null>(null);
 
   // Activity Search in Home Tab
   const [activitySearchQuery, setActivitySearchQuery] = useState('');
@@ -99,6 +121,8 @@ export default function AdminPortal() {
     academicYear: '2569',
     location: '',
     description: '',
+    capacity: 100,
+    checkInMode: 'SINGLE' as Activity['checkInMode'],
   });
 
   // ตัวกรองรายงานชั่วโมง
@@ -106,19 +130,54 @@ export default function AdminPortal() {
   const [reportSelectedYear, setReportSelectedYear] = useState('1');
   const [reportSelectedMajor, setReportSelectedMajor] = useState('อิสลามศึกษา');
   const [reportSearchQuery, setReportSearchQuery] = useState('');
+  const [showOnlyAtRiskYear4, setShowOnlyAtRiskYear4] = useState(false);
 
   // Password Modal
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [newPin, setNewPin] = useState('');
 
-  // Handle PIN Login
+  // Network Status and Offline Queue Hydration
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setIsOnline(navigator.onLine);
+      const updateOnline = () => setIsOnline(navigator.onLine);
+      window.addEventListener('online', updateOnline);
+      window.addEventListener('offline', updateOnline);
+
+      try {
+        const savedQueue = localStorage.getItem('unipass_offline_queue');
+        if (savedQueue) {
+          const parsed = JSON.parse(savedQueue);
+          if (Array.isArray(parsed)) setOfflineQueue(parsed);
+        }
+      } catch (err) {
+        console.warn('Failed reading offline queue:', err);
+      }
+
+      return () => {
+        window.removeEventListener('online', updateOnline);
+        window.removeEventListener('offline', updateOnline);
+      };
+    }
+  }, []);
+
+  // Handle PIN Login (1234: Super Admin / 5678: Staff Scanner)
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === '1234' || pinInput === 'admin') {
+    const cleanPin = pinInput.trim();
+    if (cleanPin === '1234' || cleanPin === 'admin') {
       setIsAuthenticated(true);
+      setUserRole('superadmin');
       setPinError(false);
+      playSuccessBeep();
+    } else if (cleanPin === '5678' || cleanPin === 'staff') {
+      setIsAuthenticated(true);
+      setUserRole('staff');
+      setPinError(false);
+      playSuccessBeep();
     } else {
       setPinError(true);
+      playWarningBeep();
     }
   };
 
@@ -179,6 +238,7 @@ export default function AdminPortal() {
         yearLevel: student.yearLevel,
         dateRecorded: r.dateRecorded,
         hours: r.hoursEarned,
+        checkInType: r.checkInType || 'SINGLE',
       };
     });
   }, [selectedActivity, records, students]);
@@ -199,20 +259,127 @@ export default function AdminPortal() {
     return { byMajor, byGender, byYear };
   }, [currentActivityAttendees]);
 
+  // ซิงค์คิวออฟไลน์ขึ้นเซิร์ฟเวอร์
+  const syncOfflineQueue = async () => {
+    if (offlineQueue.length === 0) return;
+    setRefreshing(true);
+    try {
+      let successCount = 0;
+      for (const item of offlineQueue) {
+        await fetch('/api/activities', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'record_attendance',
+            studentIds: [item.studentId],
+            activity: {
+              id: item.activityId,
+              title: item.activityTitle,
+              category: item.category,
+              hours: item.hoursEarned,
+            },
+            checkInType: item.checkInType,
+          }),
+        });
+        successCount++;
+      }
+      setOfflineQueue([]);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('unipass_offline_queue');
+      }
+      playSuccessBeep();
+      setMessage({
+        text: `⚡ ซิงค์ข้อมูลออฟไลน์ขึ้นระบบเรียบร้อย (${successCount} รายการ)`,
+        type: 'success',
+      });
+    } catch (err) {
+      console.error('Offline sync failed', err);
+      playWarningBeep();
+      setMessage({ text: 'ยังไม่สามารถซิงค์ข้อมูลกับเซิร์ฟเวอร์ได้ในขณะนี้', type: 'error' });
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   // เช็คชื่อนักศึกษา 1 คน (Quick Check-in หรือสแกน QR)
   const handleCheckInSingle = async (sid: string) => {
-    const cleanId = sid.trim();
-    if (!cleanId || !selectedActivity) return;
+    const rawInput = sid.trim();
+    if (!rawInput || !selectedActivity) return;
 
-    // ตรวจสอบว่าเช็คอินไปแล้วหรือยัง
-    const alreadyChecked = records.some(
-      (r) => r.activityId === selectedActivity.id && r.studentId === cleanId
-    );
-    if (alreadyChecked) {
-      setMessage({ text: `รหัส ${cleanId} ได้เช็คอินกิจกรรมนี้ไปแล้ว`, type: 'error' });
+    // 1. ตรวจสอบ Dynamic QR Payload และความถูกต้อง
+    const qrResult = verifyQrPayload(rawInput);
+    if (!qrResult.valid) {
+      playWarningBeep();
+      setMessage({
+        text: `❌ ${qrResult.error || 'QR Code ไม่ถูกต้อง หรือหมดอายุ (กรุณาให้นักศึกษารีเฟรชหน้าบัตร)'}`,
+        type: 'error',
+      });
       return;
     }
 
+    const cleanId = qrResult.studentId;
+
+    // 2. ตรวจสอบการเช็คอินซ้ำตามรอบที่เลือก (SINGLE, IN, OUT)
+    const isDuplicate = records.some((r) => {
+      if (r.activityId !== selectedActivity.id || r.studentId !== cleanId) return false;
+      if (currentCheckInType === 'SINGLE') return true;
+      return r.checkInType === currentCheckInType;
+    });
+
+    if (isDuplicate) {
+      playWarningBeep();
+      const roundLabel = currentCheckInType === 'IN' ? 'รอบเข้า (IN)' : currentCheckInType === 'OUT' ? 'รอบออก (OUT)' : 'กิจกรรมนี้';
+      setMessage({
+        text: `⚠️ รหัส ${cleanId} ได้เช็คอิน${roundLabel}ไปแล้ว`,
+        type: 'error',
+      });
+      return;
+    }
+
+    // 3. ตรวจสอบความจุสูงสุด (Capacity limit)
+    if (selectedActivity.capacity && currentActivityAttendees.length >= selectedActivity.capacity) {
+      playWarningBeep();
+      setMessage({
+        text: `⚠️ กิจกรรมนี้มีผู้เข้าร่วมครบตามจำนวนความจุแล้ว (${selectedActivity.capacity} ที่นั่ง)`,
+        type: 'error',
+      });
+      return;
+    }
+
+    // ข้อมูลนักศึกษา
+    const studentObj = students.find((s) => s.studentId === cleanId);
+    const studentName = studentObj ? studentObj.name : `รหัส ${cleanId}`;
+
+    const newRecord: AttendanceRecord = {
+      id: `REC-${Date.now()}`,
+      studentId: cleanId,
+      activityId: selectedActivity.id,
+      activityTitle: selectedActivity.title,
+      category: selectedActivity.category,
+      hoursEarned: selectedActivity.hours,
+      dateRecorded: new Date().toLocaleString('th-TH'),
+      status: 'APPROVED',
+      checkInType: currentCheckInType,
+    };
+
+    // 4. หากทำงานในโหมด Offline (เน็ตดับ) ให้บันทึกเข้าคิวออฟไลน์ทันที
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const updated = [...offlineQueue, newRecord];
+      setOfflineQueue(updated);
+      try {
+        localStorage.setItem('unipass_offline_queue', JSON.stringify(updated));
+      } catch (e) {}
+      setRecords((prev) => [newRecord, ...prev]);
+      playSuccessBeep();
+      setMessage({
+        text: `📦 [ออฟไลน์] บันทึกสำเร็จ: ${cleanId} (${studentName}) [${currentCheckInType}]`,
+        type: 'success',
+      });
+      setQuickStudentId('');
+      return;
+    }
+
+    // 5. หากต่อเน็ต ให้ส่งข้อมูลไปยังเซิร์ฟเวอร์
     try {
       const res = await fetch('/api/activities', {
         method: 'POST',
@@ -221,33 +388,35 @@ export default function AdminPortal() {
           action: 'record_attendance',
           studentIds: [cleanId],
           activity: selectedActivity,
+          checkInType: currentCheckInType,
         }),
       });
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'เช็คอินไม่สำเร็จ');
 
-      // อัปเดต state แบบสด
-      const studentObj = students.find((s) => s.studentId === cleanId);
-      const studentName = studentObj ? studentObj.name : `รหัส ${cleanId}`;
-
-      const newRecord: AttendanceRecord = {
-        id: `REC-${Date.now()}`,
-        studentId: cleanId,
-        activityId: selectedActivity.id,
-        activityTitle: selectedActivity.title,
-        category: selectedActivity.category,
-        hoursEarned: selectedActivity.hours,
-        dateRecorded: new Date().toLocaleString('th-TH'),
-        status: 'APPROVED',
-      };
-
       setRecords((prev) => [newRecord, ...prev]);
-      setMessage({ text: `✅ เช็คอินสำเร็จ: ${cleanId} (${studentName}) ได้รับ ${selectedActivity.hours} ชม.`, type: 'success' });
+      playSuccessBeep();
+      const roundText = currentCheckInType === 'IN' ? ' (รอบเข้า IN)' : currentCheckInType === 'OUT' ? ' (รอบออก OUT)' : '';
+      setMessage({
+        text: `✅ เช็คอินสำเร็จ: ${cleanId} (${studentName})${roundText} ได้รับ ${selectedActivity.hours} ชม.`,
+        type: 'success',
+      });
       setQuickStudentId('');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการเช็คอิน';
-      setMessage({ text: msg, type: 'error' });
+      // Fallback เก็บใน Offline Queue หากเซิร์ฟเวอร์มีปัญหา
+      const updated = [...offlineQueue, newRecord];
+      setOfflineQueue(updated);
+      try {
+        localStorage.setItem('unipass_offline_queue', JSON.stringify(updated));
+      } catch (e) {}
+      setRecords((prev) => [newRecord, ...prev]);
+      playSuccessBeep();
+      setMessage({
+        text: `📦 เชื่อมต่อเซิร์ฟเวอร์ชั่วคราวไม่ได้ บันทึกลงคิวออฟไลน์แล้ว: ${cleanId}`,
+        type: 'success',
+      });
+      setQuickStudentId('');
     }
   };
 
@@ -273,13 +442,13 @@ export default function AdminPortal() {
           action: 'record_attendance',
           studentIds: rawIds,
           activity: selectedActivity,
+          checkInType: currentCheckInType,
         }),
       });
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'บันทึกไม่สำเร็จ');
 
-      // เพิ่ม records ใหม่ลงใน state
       const newRecs: AttendanceRecord[] = rawIds.map((sid, idx) => ({
         id: `REC-${Date.now()}-${idx}`,
         studentId: sid,
@@ -289,9 +458,11 @@ export default function AdminPortal() {
         hoursEarned: selectedActivity.hours,
         dateRecorded: new Date().toLocaleString('th-TH'),
         status: 'APPROVED',
+        checkInType: currentCheckInType,
       }));
 
       setRecords((prev) => [...newRecs, ...prev]);
+      playSuccessBeep();
       setMessage({
         text: `✅ บันทึกเช็คอินเรียบร้อย ${rawIds.length} คน!`,
         type: 'success',
@@ -299,6 +470,40 @@ export default function AdminPortal() {
       setBulkStudentIds('');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาดในการเช็คอินกลุ่ม';
+      playWarningBeep();
+      setMessage({ text: msg, type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // คัดลอกกิจกรรม (Duplicate Activity ใน 1 คลิก)
+  const handleDuplicateActivity = async (act: Activity) => {
+    setLoading(true);
+    try {
+      const duplicated: Activity = {
+        ...act,
+        id: `ACT-${Date.now().toString().slice(-4)}`,
+        title: `${act.title} (สำเนา)`,
+      };
+
+      const res = await fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'create_activity',
+          ...duplicated,
+        }),
+      });
+
+      if (!res.ok) throw new Error('คัดลอกกิจกรรมไม่สำเร็จ');
+
+      setActivities((prev) => [duplicated, ...prev]);
+      playSuccessBeep();
+      setMessage({ text: `📋 คัดลอกกิจกรรม "${duplicated.title}" สำเร็จแล้ว!`, type: 'success' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด';
+      playWarningBeep();
       setMessage({ text: msg, type: 'error' });
     } finally {
       setLoading(false);
@@ -321,6 +526,8 @@ export default function AdminPortal() {
         academicYear: activityForm.academicYear,
         location: activityForm.location,
         description: activityForm.description,
+        capacity: Number(activityForm.capacity) || undefined,
+        checkInMode: activityForm.checkInMode || 'SINGLE',
       };
 
       const res = await fetch('/api/activities', {
@@ -335,6 +542,7 @@ export default function AdminPortal() {
       if (!res.ok) throw new Error('บันทึกกิจกรรมลงระบบไม่สำเร็จ');
 
       setActivities((prev) => [newAct, ...prev]);
+      playSuccessBeep();
       setMessage({ text: `สร้างกิจกรรม "${newAct.title}" สำเร็จเรียบร้อย!`, type: 'success' });
       setActivityForm({
         title: '',
@@ -345,11 +553,14 @@ export default function AdminPortal() {
         academicYear: '2569',
         location: '',
         description: '',
+        capacity: 100,
+        checkInMode: 'SINGLE',
       });
       setActiveTab('home');
       setSelectedActivity(newAct);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'เกิดข้อผิดพลาด';
+      playWarningBeep();
       setMessage({ text: msg, type: 'error' });
     } finally {
       setLoading(false);
@@ -358,12 +569,16 @@ export default function AdminPortal() {
 
   // ตรวจสอบนักศึกษาในแท็บ Verify
   const handleVerifyStudent = (sid: string) => {
-    const cleanId = sid.trim();
-    if (!cleanId) return;
+    const raw = sid.trim();
+    if (!raw) return;
+
+    const qrCheck = verifyQrPayload(raw);
+    const cleanId = qrCheck.valid ? qrCheck.studentId : raw;
 
     const student = students.find((s) => s.studentId === cleanId);
     if (!student) {
       setVerifiedStudentResult(null);
+      playWarningBeep();
       setMessage({ text: `ไม่พบข้อมูลนักศึกษารหัส ${cleanId} ในระบบ`, type: 'error' });
       return;
     }
@@ -376,8 +591,79 @@ export default function AdminPortal() {
       records: stRecords,
       totalHours,
     });
+    playSuccessBeep();
     setMessage(null);
   };
+
+  // แมปชั่วโมงสะสมรวมของนักศึกษาแต่ละคน
+  const studentTotalHoursMap = useMemo(() => {
+    const map = new Map<string, number>();
+    records.forEach((r) => {
+      map.set(r.studentId, (map.get(r.studentId) || 0) + r.hoursEarned);
+    });
+    return map;
+  }, [records]);
+
+  // นักศึกษาชั้นปี 4 ที่ยังไม่ครบ 60 ชั่วโมง (กลุ่มเสี่ยงไม่สำเร็จการศึกษา)
+  const atRiskYear4Students = useMemo(() => {
+    return students.filter((s) => {
+      if (s.yearLevel !== 4) return false;
+      const hrs = studentTotalHoursMap.get(s.studentId) || 0;
+      return hrs < 60;
+    });
+  }, [students, studentTotalHoursMap]);
+
+  // สรุปสถิติชั่วโมงตามเกณฑ์สำหรับ Visual Analytics Charts
+  const hourDistributionStats = useMemo(() => {
+    let completed = 0; // >= 60 ชม.
+    let high = 0;      // 40 - 59 ชม.
+    let medium = 0;    // 20 - 39 ชม.
+    let low = 0;       // < 20 ชม.
+
+    students.forEach((s) => {
+      const hrs = studentTotalHoursMap.get(s.studentId) || 0;
+      if (hrs >= 60) completed++;
+      else if (hrs >= 40) high++;
+      else if (hrs >= 20) medium++;
+      else low++;
+    });
+
+    const total = students.length || 1;
+    return {
+      completed,
+      high,
+      medium,
+      low,
+      completedPct: Math.round((completed / total) * 100),
+      highPct: Math.round((high / total) * 100),
+      mediumPct: Math.round((medium / total) * 100),
+      lowPct: Math.round((low / total) * 100),
+    };
+  }, [students, studentTotalHoursMap]);
+
+  // ค่าเฉลี่ยชั่วโมงแยกตามชั้นปี สำหรับ Bar Chart
+  const yearAverageHours = useMemo(() => {
+    const sums: Record<number, { totalHours: number; count: number }> = {
+      1: { totalHours: 0, count: 0 },
+      2: { totalHours: 0, count: 0 },
+      3: { totalHours: 0, count: 0 },
+      4: { totalHours: 0, count: 0 },
+    };
+
+    students.forEach((s) => {
+      const hrs = studentTotalHoursMap.get(s.studentId) || 0;
+      if (sums[s.yearLevel]) {
+        sums[s.yearLevel].totalHours += hrs;
+        sums[s.yearLevel].count++;
+      }
+    });
+
+    return [1, 2, 3, 4].map((yr) => ({
+      year: yr,
+      avg: sums[yr].count ? Math.round(sums[yr].totalHours / sums[yr].count) : 0,
+      count: sums[yr].count,
+    }));
+  }, [students, studentTotalHoursMap]);
 
   // รายการสาขาวิชาทั้งหมด
   const allMajors = useMemo(() => {
@@ -399,6 +685,12 @@ export default function AdminPortal() {
   // กรองนักศึกษาในหน้ารายงานชั่วโมง
   const filteredReportStudents = useMemo(() => {
     let list = [...students];
+
+    // ตัวกรองด่วน: นศ. ปี 4 ที่ยังไม่ครบ 60 ชม.
+    if (showOnlyAtRiskYear4) {
+      return atRiskYear4Students;
+    }
+
     if (reportFilterType === 'year') {
       list = list.filter((s) => String(s.yearLevel) === reportSelectedYear);
     } else if (reportFilterType === 'major') {
@@ -412,7 +704,7 @@ export default function AdminPortal() {
       );
     }
     return list;
-  }, [students, reportFilterType, reportSelectedYear, reportSelectedMajor, reportSearchQuery]);
+  }, [students, reportFilterType, reportSelectedYear, reportSelectedMajor, reportSearchQuery, showOnlyAtRiskYear4, atRiskYear4Students]);
 
   // ดาวน์โหลดรายงาน Excel
   const handleDownloadReport = () => {
@@ -433,7 +725,7 @@ export default function AdminPortal() {
           <div className="w-16 h-16 rounded-2xl bg-[#0070f3] text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/25">
             <ClipboardList className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 mb-1">UniPass Staff</h1>
+          <h1 className="text-2xl font-black text-slate-900 mb-1">UniPass Staff Portal</h1>
           <p className="text-xs text-slate-500 mb-6">เข้าสู่ระบบจัดการกิจกรรม มหาวิทยาลัยฟาฏอนี</p>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -442,7 +734,7 @@ export default function AdminPortal() {
                 type="password"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                placeholder="กรอกรหัส PIN (1234)"
+                placeholder="กรอกรหัส PIN (1234 หรือ 5678)"
                 className="w-full text-center tracking-widest text-2xl font-black py-3.5 px-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-[#0070f3] text-slate-900 transition"
                 autoFocus
                 required
@@ -451,7 +743,7 @@ export default function AdminPortal() {
 
             {pinError && (
               <p className="text-xs font-bold text-rose-600 animate-in fade-in">
-                รหัสผ่านไม่ถูกต้อง (รหัสเริ่มต้น: 1234)
+                รหัสผ่านไม่ถูกต้อง (Super Admin: 1234 / Staff: 5678)
               </p>
             )}
 
@@ -463,9 +755,15 @@ export default function AdminPortal() {
             </button>
           </form>
 
-          <p className="mt-4 text-[11px] text-slate-400">
-            * รหัสผ่านตั้งต้น: <span className="font-mono font-bold text-blue-600">1234</span>
-          </p>
+          <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-left space-y-1">
+            <div className="text-[11px] font-bold text-slate-600">รหัสผ่านตั้งต้นของระบบ:</div>
+            <div className="text-[11px] text-slate-500">
+              • Super Admin (สิทธิ์เต็ม): <span className="font-mono font-bold text-blue-600">1234</span>
+            </div>
+            <div className="text-[11px] text-slate-500">
+              • Staff Scanner (เจ้าหน้าที่สแกน): <span className="font-mono font-bold text-emerald-600">5678</span>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -648,15 +946,35 @@ export default function AdminPortal() {
           </div>
         </div>
 
-        {/* Bottom Profile Area (ตรงตามภาพต้นฉบับ 100%: อนันต์ แวบือซา / Staff) */}
+        {/* Bottom Profile Area (รองรับ Super Admin vs Staff) */}
         <div className="p-4 border-t border-slate-100 bg-white space-y-2.5 mt-auto">
           <div className="flex items-center gap-3 px-2 py-1">
-            <div className="w-10 h-10 rounded-full bg-[#0070f3] text-white flex items-center justify-center font-bold text-sm shadow-sm">
+            <div
+              className={`w-10 h-10 rounded-full text-white flex items-center justify-center font-bold text-sm shadow-sm ${
+                userRole === 'superadmin' ? 'bg-[#0070f3]' : 'bg-emerald-600'
+              }`}
+            >
               <User className="w-5 h-5" />
             </div>
             <div className="overflow-hidden">
-              <div className="font-bold text-sm text-slate-800 truncate">อนันต์ แวบือซา</div>
-              <div className="text-xs text-slate-400 font-medium">Staff</div>
+              <div className="font-bold text-sm text-slate-800 truncate">
+                {userRole === 'superadmin' ? 'อนันต์ แวบือซา' : 'เจ้าหน้าที่จุดสแกน'}
+              </div>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <span
+                  className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${
+                    userRole === 'superadmin'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                      : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  }`}
+                >
+                  {userRole === 'superadmin' ? 'Super Admin' : 'Staff Scanner'}
+                </span>
+                <span
+                  className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                  title={isOnline ? 'ออนไลน์' : 'ออฟไลน์'}
+                />
+              </div>
             </div>
           </div>
 
@@ -680,6 +998,32 @@ export default function AdminPortal() {
 
       {/* Main Content Area (ฝั่งขวา) */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        {/* Offline Queue Notification Banner */}
+        {(!isOnline || offlineQueue.length > 0) && (
+          <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between animate-in fade-in">
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+              {isOnline ? (
+                <Wifi className="w-4 h-4 text-emerald-600 shrink-0" />
+              ) : (
+                <WifiOff className="w-4 h-4 text-amber-600 shrink-0" />
+              )}
+              <span>
+                {!isOnline ? '🔴 กำลังทำงานในโหมดออฟไลน์ (ไม่มีสัญญาณเน็ต)' : '🟢 สัญญาณเน็ตกลับมาแล้ว'} 
+                {offlineQueue.length > 0 && ` — มี ${offlineQueue.length} รายการรอส่งเข้า Google Sheets`}
+              </span>
+            </div>
+            {offlineQueue.length > 0 && isOnline && (
+              <button
+                onClick={syncOfflineQueue}
+                disabled={refreshing}
+                className="flex items-center gap-1.5 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                <RotateCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                <span>ซิงค์ข้อมูลเดี๋ยวนี้ ({offlineQueue.length})</span>
+              </button>
+            )}
+          </div>
+        )}
         {/* Top Floating Notification */}
         {message && (
           <div className="p-4 bg-white border-b border-slate-200 shadow-sm flex items-center justify-between animate-in fade-in">
@@ -739,7 +1083,8 @@ export default function AdminPortal() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredActivities.map((act) => {
                   const checkInCount = activityAttendanceMap.get(act.id) || 0;
-                  const percentage = Math.min(100, Math.round((checkInCount / totalPool) * 100));
+                  const maxCap = act.capacity || totalPool;
+                  const percentage = Math.min(100, Math.round((checkInCount / maxCap) * 100));
 
                   return (
                     <div
@@ -747,6 +1092,14 @@ export default function AdminPortal() {
                       className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
                     >
                       <div>
+                        {/* Badges */}
+                        <div className="flex items-center justify-between text-xs font-semibold mb-2">
+                          <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-600 font-bold text-[11px]">
+                            {act.category}
+                          </span>
+                          <span className="font-bold text-[#0070f3]">+{act.hours} ชม.</span>
+                        </div>
+
                         {/* Title */}
                         <h3 className="font-bold text-slate-900 text-base leading-snug mb-1 line-clamp-2 min-h-[44px]">
                           {act.title}
@@ -754,14 +1107,14 @@ export default function AdminPortal() {
 
                         {/* Date and Time */}
                         <p className="text-xs text-slate-400 font-medium mb-4">
-                          {act.date}
+                          {act.date} • {act.location || 'ม.ฟาฏอนี'}
                         </p>
 
                         {/* Check-in Progress */}
                         <div className="space-y-1.5 mb-6">
                           <div className="flex justify-between items-center text-xs font-semibold">
                             <span className="text-slate-600">
-                              เช็คอิน: {checkInCount} / {totalPool}
+                              เช็คอิน: {checkInCount} / {act.capacity ? `${act.capacity} ที่นั่ง` : `${totalPool} คน`}
                             </span>
                             <span className="text-slate-500 font-bold">{percentage}%</span>
                           </div>
@@ -775,13 +1128,25 @@ export default function AdminPortal() {
                         </div>
                       </div>
 
-                      {/* Select Activity Button (สีน้ำเงินปุ่มเด่นตามภาพต้นฉบับ) */}
-                      <button
-                        onClick={() => setSelectedActivity(act)}
-                        className="w-full py-2.5 bg-[#0070f3] hover:bg-[#0060df] active:scale-98 text-white font-bold rounded-xl text-sm transition shadow-sm cursor-pointer text-center"
-                      >
-                        เลือกกิจกรรมนี้
-                      </button>
+                      {/* Action Buttons: เลือกกิจกรรมนี้ & ฉายขึ้นจอ */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedActivity(act)}
+                          className="flex-1 py-2.5 bg-[#0070f3] hover:bg-[#0060df] active:scale-98 text-white font-bold rounded-xl text-xs transition shadow-sm cursor-pointer text-center"
+                        >
+                          เลือกกิจกรรมนี้
+                        </button>
+                        <button
+                          onClick={() => {
+                            setProjectorActivity(act);
+                            setIsProjectorOpen(true);
+                          }}
+                          className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                          title="ฉายจอโปรเจกเตอร์สำหรับห้องประชุม"
+                        >
+                          <Tv className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -791,7 +1156,7 @@ export default function AdminPortal() {
 
           {/* TAB 1 (SELECTED ACTIVITY WORKSPACE): เมื่อกด "เลือกกิจกรรมนี้" */}
           {activeTab === 'home' && selectedActivity && (
-            <div className="space-y-8 animate-in fade-in duration-200">
+            <div className="space-y-6 animate-in fade-in duration-200">
               {/* Top Back Navigation & Activity Hero */}
               <div>
                 <button
@@ -811,6 +1176,11 @@ export default function AdminPortal() {
                       <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-100">
                         +{selectedActivity.hours} ชั่วโมง
                       </span>
+                      {selectedActivity.checkInMode === 'IN_OUT' && (
+                        <span className="px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          รอบเข้า/ออก (2-Step)
+                        </span>
+                      )}
                       <span className="text-xs font-mono text-slate-400 font-bold">
                         {selectedActivity.id}
                       </span>
@@ -832,21 +1202,85 @@ export default function AdminPortal() {
                     </div>
                   </div>
 
-                  {/* Summary Check-in Counter */}
-                  <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 shrink-0">
-                    <div>
-                      <span className="text-[11px] font-bold text-slate-400 block uppercase">เช็คอินแล้ว</span>
-                      <div className="text-2xl font-black text-[#0070f3]">
-                        {currentActivityAttendees.length}{' '}
-                        <span className="text-xs font-medium text-slate-400">/ {totalPool} คน</span>
+                  {/* Summary Check-in Counter & Quick Actions */}
+                  <div className="flex flex-col sm:flex-row items-center gap-3 shrink-0">
+                    <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100 shrink-0">
+                      <div>
+                        <span className="text-[11px] font-bold text-slate-400 block uppercase">เช็คอินแล้ว</span>
+                        <div className="text-2xl font-black text-[#0070f3]">
+                          {currentActivityAttendees.length}{' '}
+                          <span className="text-xs font-medium text-slate-400">
+                            / {selectedActivity.capacity ? `${selectedActivity.capacity} ที่นั่ง` : `${totalPool} คน`}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right pl-3 border-l border-slate-200">
+                        <span className="text-xl font-black text-slate-800">
+                          {Math.round((currentActivityAttendees.length / (selectedActivity.capacity || totalPool)) * 100)}%
+                        </span>
                       </div>
                     </div>
-                    <div className="text-right pl-3 border-l border-slate-200">
-                      <span className="text-xl font-black text-slate-800">
-                        {Math.round((currentActivityAttendees.length / totalPool) * 100)}%
-                      </span>
+
+                    <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto">
+                      <button
+                        onClick={() => {
+                          setProjectorActivity(selectedActivity);
+                          setIsProjectorOpen(true);
+                        }}
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+                      >
+                        <Tv className="w-3.5 h-3.5" />
+                        <span>ฉายขึ้นจอ</span>
+                      </button>
+                      <button
+                        onClick={() => handleDuplicateActivity(selectedActivity)}
+                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-slate-500" />
+                        <span>คัดลอก</span>
+                      </button>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Round Mode Selector (SINGLE / IN / OUT) */}
+              <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">รอบการเช็คอินปัจจุบัน:</span>
+                  <span className="text-xs text-slate-400">(เลือกรอบก่อนสแกนหรือบันทึกรหัส)</span>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    onClick={() => setCurrentCheckInType('SINGLE')}
+                    className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      currentCheckInType === 'SINGLE'
+                        ? 'bg-slate-900 text-white shadow-sm'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span>⚪ เช็คอินปกติ (Single)</span>
+                  </button>
+                  <button
+                    onClick={() => setCurrentCheckInType('IN')}
+                    className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      currentCheckInType === 'IN'
+                        ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
+                        : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200'
+                    }`}
+                  >
+                    <span>🟢 รอบเข้า (Check-in IN)</span>
+                  </button>
+                  <button
+                    onClick={() => setCurrentCheckInType('OUT')}
+                    className={`flex-1 sm:flex-initial px-4 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                      currentCheckInType === 'OUT'
+                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                        : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'
+                    }`}
+                  >
+                    <span>🔵 รอบออก (Check-out OUT)</span>
+                  </button>
                 </div>
               </div>
 
@@ -861,7 +1295,7 @@ export default function AdminPortal() {
                       </div>
                       <div>
                         <h3 className="font-bold text-slate-900 text-base">สแกน QR Code ผ่านกล้อง</h3>
-                        <p className="text-xs text-slate-400">รองรับกล้องทุกอุปกรณ์ สลับกล้องหน้า/หลัง หรืออัปโหลดรูปภาพ</p>
+                        <p className="text-xs text-slate-400">รองรับ Dynamic Rotating QR และรหัสดั้งเดิม</p>
                       </div>
                     </div>
 
@@ -982,6 +1416,7 @@ export default function AdminPortal() {
                         <th className="py-3 px-4 text-center">เพศ</th>
                         <th className="py-3 px-4">สาขาวิชา</th>
                         <th className="py-3 px-4 text-center">ชั้นปี</th>
+                        <th className="py-3 px-4 text-center">รอบ</th>
                         <th className="py-3 px-4 text-center">ชั่วโมง</th>
                         <th className="py-3 px-4 text-center">เวลาเช็คอิน</th>
                       </tr>
@@ -1011,6 +1446,19 @@ export default function AdminPortal() {
                             </td>
                             <td className="py-3 px-4 text-slate-700">{att.major}</td>
                             <td className="py-3 px-4 text-center font-medium">ปี {att.yearLevel}</td>
+                            <td className="py-3 px-4 text-center">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  att.checkInType === 'IN'
+                                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                    : att.checkInType === 'OUT'
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}
+                              >
+                                {att.checkInType === 'IN' ? 'เข้า IN' : att.checkInType === 'OUT' ? 'ออก OUT' : 'ปกติ'}
+                              </span>
+                            </td>
                             <td className="py-3 px-4 text-center font-bold text-[#0070f3]">+{att.hours} ชม.</td>
                             <td className="py-3 px-4 text-center text-slate-400 font-mono text-[11px]">{att.dateRecorded}</td>
                           </tr>
@@ -1080,11 +1528,199 @@ export default function AdminPortal() {
           {/* TAB 3: รายงานชั่วโมง */}
           {activeTab === 'hours_report' && (
             <div className="space-y-6">
+              {/* KPI Cards Row */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                  <div className="flex items-center justify-between text-xs font-bold text-slate-400 mb-2">
+                    <span>นักศึกษาทั้งหมด</span>
+                    <Users className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div className="text-2xl font-black text-slate-900">{students.length || 960} คน</div>
+                  <p className="text-[11px] text-slate-400 mt-1">ฐานข้อมูล 4 ชั้นปี (รหัส 66-69)</p>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                  <div className="flex items-center justify-between text-xs font-bold text-emerald-600 mb-2">
+                    <span>ครบเกณฑ์ 60 ชม.</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div className="text-2xl font-black text-emerald-600">
+                    {hourDistributionStats.completed} <span className="text-xs font-normal text-slate-400">({hourDistributionStats.completedPct}%)</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700/80 mt-1">พร้อมสำเร็จการศึกษาตามเกณฑ์</p>
+                </div>
+
+                <div className="p-5 rounded-2xl bg-white border border-slate-200/80 shadow-sm">
+                  <div className="flex items-center justify-between text-xs font-bold text-blue-600 mb-2">
+                    <span>ใกล้ครบ (40-59 ชม.)</span>
+                    <Award className="w-4 h-4 text-blue-500" />
+                  </div>
+                  <div className="text-2xl font-black text-[#0070f3]">
+                    {hourDistributionStats.high} <span className="text-xs font-normal text-slate-400">({hourDistributionStats.highPct}%)</span>
+                  </div>
+                  <p className="text-[11px] text-blue-600/80 mt-1">ขาดอีกไม่เกิน 20 ชั่วโมง</p>
+                </div>
+
+                {/* At-Risk Year 4 Card (กดเพื่อกรองได้ทันที) */}
+                <div 
+                  onClick={() => setShowOnlyAtRiskYear4(!showOnlyAtRiskYear4)}
+                  className={`p-5 rounded-2xl border shadow-sm cursor-pointer transition-all ${
+                    showOnlyAtRiskYear4 
+                      ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-500/20' 
+                      : 'bg-white border-slate-200/80 hover:border-rose-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between text-xs font-bold text-rose-600 mb-2">
+                    <span>🚨 เสี่ยงไม่จบ (ปี 4 &lt; 60 ชม.)</span>
+                    <AlertCircle className="w-4 h-4 text-rose-500" />
+                  </div>
+                  <div className="text-2xl font-black text-rose-600">
+                    {atRiskYear4Students.length} <span className="text-xs font-normal text-slate-400">คน</span>
+                  </div>
+                  <p className="text-[11px] text-rose-600 font-bold mt-1 flex items-center gap-1">
+                    <span>{showOnlyAtRiskYear4 ? '✓ กำลังกรองแสดงกลุ่มนี้' : '👉 คลิกเพื่อกรองดูรายชื่อ'}</span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Visual Analytics Charts: สัดส่วนชั่วโมง & ค่าเฉลี่ยแยกชั้นปี */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Chart 1: สัดส่วนการสะสมชั่วโมง 4 ระดับ */}
+                <div className="p-6 bg-white rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <PieChart className="w-4 h-4 text-[#0070f3]" />
+                      <span>สัดส่วนการสะสมชั่วโมงกิจกรรมนักศึกษา (Distribution)</span>
+                    </h3>
+                  </div>
+
+                  {/* Multi-segment Progress Bar */}
+                  <div className="w-full h-4 rounded-full bg-slate-100 overflow-hidden flex">
+                    <div
+                      style={{ width: `${hourDistributionStats.completedPct}%` }}
+                      className="bg-emerald-500 h-full transition-all"
+                      title={`ครบเกณฑ์ (>=60 ชม.): ${hourDistributionStats.completed} คน`}
+                    />
+                    <div
+                      style={{ width: `${hourDistributionStats.highPct}%` }}
+                      className="bg-[#0070f3] h-full transition-all"
+                      title={`40-59 ชม.: ${hourDistributionStats.high} คน`}
+                    />
+                    <div
+                      style={{ width: `${hourDistributionStats.mediumPct}%` }}
+                      className="bg-amber-400 h-full transition-all"
+                      title={`20-39 ชม.: ${hourDistributionStats.medium} คน`}
+                    />
+                    <div
+                      style={{ width: `${hourDistributionStats.lowPct}%` }}
+                      className="bg-rose-400 h-full transition-all"
+                      title={`< 20 ชม.: ${hourDistributionStats.low} คน`}
+                    />
+                  </div>
+
+                  {/* Legend Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 text-xs">
+                    <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50">
+                      <span className="w-3 h-3 rounded-full bg-emerald-500 shrink-0" />
+                      <div>
+                        <div className="font-bold text-slate-800">≥60 ชม.</div>
+                        <div className="text-[10px] text-slate-400">{hourDistributionStats.completed} คน ({hourDistributionStats.completedPct}%)</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50">
+                      <span className="w-3 h-3 rounded-full bg-[#0070f3] shrink-0" />
+                      <div>
+                        <div className="font-bold text-slate-800">40-59 ชม.</div>
+                        <div className="text-[10px] text-slate-400">{hourDistributionStats.high} คน ({hourDistributionStats.highPct}%)</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50">
+                      <span className="w-3 h-3 rounded-full bg-amber-400 shrink-0" />
+                      <div>
+                        <div className="font-bold text-slate-800">20-39 ชม.</div>
+                        <div className="text-[10px] text-slate-400">{hourDistributionStats.medium} คน ({hourDistributionStats.mediumPct}%)</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50">
+                      <span className="w-3 h-3 rounded-full bg-rose-400 shrink-0" />
+                      <div>
+                        <div className="font-bold text-slate-800">&lt;20 ชม.</div>
+                        <div className="text-[10px] text-slate-400">{hourDistributionStats.low} คน ({hourDistributionStats.lowPct}%)</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Chart 2: ค่าเฉลี่ยชั่วโมงแยกตามชั้นปี */}
+                <div className="p-6 bg-white rounded-3xl border border-slate-200/80 shadow-sm space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <BarChart2 className="w-4 h-4 text-[#0070f3]" />
+                      <span>ค่าเฉลี่ยชั่วโมงสะสมแยกตามชั้นปี (เทียบเกณฑ์ 60 ชม.)</span>
+                    </h3>
+                  </div>
+
+                  <div className="space-y-2.5 pt-1">
+                    {yearAverageHours.map((yr) => {
+                      const pct = Math.min(100, Math.round((yr.avg / 60) * 100));
+                      return (
+                        <div key={yr.year} className="space-y-1">
+                          <div className="flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-700">
+                              ชั้นปีที่ {yr.year} ({yr.count} คน)
+                            </span>
+                            <span className="font-bold text-slate-900 font-mono">
+                              เฉลี่ย {yr.avg} / 60 ชม. ({pct}%)
+                            </span>
+                          </div>
+                          <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                            <div
+                              style={{ width: `${pct}%` }}
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                yr.year === 4 && yr.avg < 60
+                                  ? 'bg-rose-500'
+                                  : pct >= 80
+                                  ? 'bg-emerald-500'
+                                  : 'bg-[#0070f3]'
+                              }`}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* At-risk Alert Banner if Active */}
+              {showOnlyAtRiskYear4 && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-between animate-in fade-in">
+                  <div className="flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                    <div className="text-xs">
+                      <span className="font-black text-rose-900 block">
+                        กำลังแสดงผลรายชื่อนักศึกษาชั้นปีที่ 4 ที่ยังไม่ผ่านเกณฑ์ 60 ชั่วโมง ({atRiskYear4Students.length} คน)
+                      </span>
+                      <span className="text-rose-700">
+                        กลุ่มนี้จำเป็นต้องเข้าร่วมกิจกรรมเพิ่มเติมเพื่อสำเร็จการศึกษาทันภาคการศึกษานี้
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowOnlyAtRiskYear4(false)}
+                    className="px-3 py-1.5 bg-white border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs transition cursor-pointer shrink-0"
+                  >
+                    ✕ ล้างตัวกรอง
+                  </button>
+                </div>
+              )}
+
+              {/* Main Report Table Container */}
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <div>
                     <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-                      รายงานชั่วโมงกิจกรรมนักศึกษา
+                      {showOnlyAtRiskYear4 ? 'รายชื่อนักศึกษาปี 4 กลุ่มเสี่ยง' : 'รายงานชั่วโมงกิจกรรมนักศึกษา'}
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
                       สรุปผลชั่วโมงกิจกรรมสะสมของนักศึกษาทั้ง 960 คน พร้อมส่งออกไฟล์ Excel
@@ -1106,30 +1742,51 @@ export default function AdminPortal() {
 
                   <div className="flex bg-white rounded-xl border border-slate-200 p-0.5 text-xs font-bold">
                     <button
-                      onClick={() => setReportFilterType('all')}
+                      onClick={() => {
+                        setShowOnlyAtRiskYear4(false);
+                        setReportFilterType('all');
+                      }}
                       className={`px-3 py-1.5 rounded-lg transition ${
-                        reportFilterType === 'all' ? 'bg-[#0070f3] text-white' : 'text-slate-600'
+                        !showOnlyAtRiskYear4 && reportFilterType === 'all' ? 'bg-[#0070f3] text-white' : 'text-slate-600'
                       }`}
                     >
                       ทั้งหมด
                     </button>
                     <button
-                      onClick={() => setReportFilterType('year')}
+                      onClick={() => {
+                        setShowOnlyAtRiskYear4(false);
+                        setReportFilterType('year');
+                      }}
                       className={`px-3 py-1.5 rounded-lg transition ${
-                        reportFilterType === 'year' ? 'bg-[#0070f3] text-white' : 'text-slate-600'
+                        !showOnlyAtRiskYear4 && reportFilterType === 'year' ? 'bg-[#0070f3] text-white' : 'text-slate-600'
                       }`}
                     >
                       รายชั้นปี
                     </button>
                     <button
-                      onClick={() => setReportFilterType('major')}
+                      onClick={() => {
+                        setShowOnlyAtRiskYear4(false);
+                        setReportFilterType('major');
+                      }}
                       className={`px-3 py-1.5 rounded-lg transition ${
-                        reportFilterType === 'major' ? 'bg-[#0070f3] text-white' : 'text-slate-600'
+                        !showOnlyAtRiskYear4 && reportFilterType === 'major' ? 'bg-[#0070f3] text-white' : 'text-slate-600'
                       }`}
                     >
                       รายสาขาวิชา
                     </button>
                   </div>
+
+                  {/* ปุ่มลัดกรองกลุ่มเสี่ยงปี 4 */}
+                  <button
+                    onClick={() => setShowOnlyAtRiskYear4(!showOnlyAtRiskYear4)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                      showOnlyAtRiskYear4
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200'
+                    }`}
+                  >
+                    <span>🚨 ปี 4 &lt; 60 ชม. ({atRiskYear4Students.length})</span>
+                  </button>
 
                   {reportFilterType === 'year' && (
                     <select
@@ -1472,6 +2129,44 @@ export default function AdminPortal() {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        จำนวนรับสูงสุด (Capacity)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="2000"
+                        value={activityForm.capacity}
+                        onChange={(e) =>
+                          setActivityForm({ ...activityForm, capacity: Number(e.target.value) })
+                        }
+                        placeholder="เช่น 100 (ระบุเพื่อจำกัดที่นั่ง)"
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                        รูปแบบการเช็คอิน *
+                      </label>
+                      <select
+                        value={activityForm.checkInMode}
+                        onChange={(e) =>
+                          setActivityForm({
+                            ...activityForm,
+                            checkInMode: e.target.value as Activity['checkInMode'],
+                          })
+                        }
+                        className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold bg-white"
+                      >
+                        <option value="SINGLE">เช็คอินครั้งเดียว (Single Check-in)</option>
+                        <option value="IN_OUT">เช็คอิน 2 จังหวะ (รอบเข้า IN / รอบออก OUT)</option>
+                      </select>
+                    </div>
+                  </div>
+
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">
                       สถานที่จัดกิจกรรม
@@ -1520,7 +2215,7 @@ export default function AdminPortal() {
                       จัดการกิจกรรมทั้งหมด ({activities.length} รายการ)
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
-                      ดูรายชื่อผู้เช็คอิน แก้ไข หรือเปิดห้องสแกนสำหรับแต่ละกิจกรรม
+                      ดูรายชื่อผู้เช็คอิน แก้ไข คัดลอก หรือเปิดฉายจอโปรเจกเตอร์
                     </p>
                   </div>
 
@@ -1547,17 +2242,40 @@ export default function AdminPortal() {
                           <p className="text-xs text-slate-500 mb-3">{act.date} • {act.location || 'ม.ฟาฏอนี'}</p>
                         </div>
 
-                        <div className="flex items-center justify-between pt-3 border-t border-slate-200 text-xs">
-                          <span className="text-slate-600 font-bold">เช็คอิน: {count} คน</span>
-                          <button
-                            onClick={() => {
-                              setSelectedActivity(act);
-                              setActiveTab('home');
-                            }}
-                            className="px-3 py-1.5 bg-[#0070f3] text-white rounded-lg font-bold hover:bg-[#0060df] transition cursor-pointer"
-                          >
-                            เปิดหน้าเช็คอิน
-                          </button>
+                        <div className="flex flex-wrap items-center justify-between pt-3 border-t border-slate-200 text-xs gap-2">
+                          <span className="text-slate-600 font-bold">
+                            เช็คอิน: {count} {act.capacity ? `/ ${act.capacity}` : ''} คน
+                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => {
+                                setProjectorActivity(act);
+                                setIsProjectorOpen(true);
+                              }}
+                              className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1"
+                              title="ฉายขึ้นจอโปรเจกเตอร์"
+                            >
+                              <Tv className="w-3.5 h-3.5" />
+                              <span>ฉายจอ</span>
+                            </button>
+                            <button
+                              onClick={() => handleDuplicateActivity(act)}
+                              className="px-2.5 py-1.5 bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1"
+                              title="คัดลอกกิจกรรม"
+                            >
+                              <Copy className="w-3.5 h-3.5 text-slate-400" />
+                              <span>คัดลอก</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedActivity(act);
+                                setActiveTab('home');
+                              }}
+                              className="px-3 py-1.5 bg-[#0070f3] text-white rounded-lg font-bold hover:bg-[#0060df] transition cursor-pointer"
+                            >
+                              เปิดเช็คอิน
+                            </button>
+                          </div>
                         </div>
                       </div>
                     );
@@ -1610,6 +2328,19 @@ export default function AdminPortal() {
             setActiveTab('verify');
           }
         }}
+      />
+
+      {/* Projector Display Mode Fullscreen Modal */}
+      <ProjectorModeModal
+        isOpen={isProjectorOpen}
+        onClose={() => setIsProjectorOpen(false)}
+        activity={projectorActivity}
+        attendeeCount={
+          projectorActivity
+            ? (activityAttendanceMap.get(projectorActivity.id) || 0)
+            : 0
+        }
+        totalPool={totalPool}
       />
 
       {/* Change Password Modal */}

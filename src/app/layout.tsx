@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Prompt } from 'next/font/google';
 import './globals.css';
 import Navbar from '@/components/Navbar';
@@ -13,6 +13,16 @@ const prompt = Prompt({
 export const metadata: Metadata = {
   title: 'ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา | Student Activity Tracker',
   description: 'ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ เชื่อมต่อ Google Sheets',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'UniPass FTU',
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#0070f3',
 };
 
 import Footer from '@/components/Footer';

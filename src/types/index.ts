@@ -12,10 +12,12 @@ export interface Activity {
   title: string;
   category: 'มหาวิทยาลัย' | 'คณะ/สาขา' | 'บำเพ็ญประโยชน์/จิตอาสา' | 'ส่งเสริมวิชาการ/วิชาชีพ';
   hours: number;
-  date: string;         // YYYY-MM-DD
+  date: string;         // YYYY-MM-DD or formatted date string
   academicYear: string; // เช่น 2569
   location: string;
   description?: string;
+  capacity?: number;    // จำนวนรับสูงสุด (Max capacity)
+  checkInMode?: 'SINGLE' | 'IN_OUT'; // รอบเดียว หรือสองรอบ เข้า/ออก
 }
 
 export interface AttendanceRecord {
@@ -27,6 +29,9 @@ export interface AttendanceRecord {
   hoursEarned: number;
   dateRecorded: string;
   status: 'APPROVED' | 'PENDING' | 'REJECTED';
+  checkInType?: 'IN' | 'OUT' | 'SINGLE';
+  inTime?: string;
+  outTime?: string;
 }
 
 export interface StudentSummary {
@@ -35,3 +40,5 @@ export interface StudentSummary {
   hoursByCategory: Record<string, number>;
   records: AttendanceRecord[];
 }
+
+export type UserRole = 'superadmin' | 'staff' | 'student';

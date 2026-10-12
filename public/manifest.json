@@ -1,0 +1,17 @@
+{
+  "name": "UniPass FTU - ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา มหาวิทยาลัยฟาฏอนี",
+  "short_name": "UniPass FTU",
+  "description": "ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ มหาวิทยาลัยฟาฏอนี เชื่อมต่อ Google Sheets",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0070f3",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

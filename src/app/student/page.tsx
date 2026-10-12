@@ -17,15 +17,24 @@ import {
   Sparkles,
   QrCode,
   User,
-  ShieldCheck
+  ShieldCheck,
+  RefreshCw,
+  FileCheck
 } from 'lucide-react';
 import { StudentSummary } from '@/types';
+import CertificateModal from '@/components/CertificateModal';
+import { generateDynamicQrPayload } from '@/lib/dynamicQr';
 
 function StudentPortalContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [data, setData] = useState<StudentSummary | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Dynamic QR Code States
+  const [dynamicQrValue, setDynamicQrValue] = useState('');
+  const [qrCountdown, setQrCountdown] = useState(30);
+  const [isCertOpen, setIsCertOpen] = useState(false);
 
   const TARGET_HOURS = 60;
 
@@ -69,6 +78,20 @@ function StudentPortalContent() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!data?.student?.studentId) return;
+
+    const updateQr = () => {
+      const { payload, expiresInSeconds } = generateDynamicQrPayload(data.student.studentId);
+      setDynamicQrValue(payload);
+      setQrCountdown(expiresInSeconds);
+    };
+
+    updateQr();
+    const interval = setInterval(updateQr, 1000);
+    return () => clearInterval(interval);
+  }, [data?.student?.studentId]);
 
   const getCategoryTheme = (category: string) => {
     switch (category) {
@@ -142,15 +165,23 @@ function StudentPortalContent() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+        <div className="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+          <button
+            onClick={() => setIsCertOpen(true)}
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:opacity-95 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-md shadow-amber-500/20 active:scale-95 cursor-pointer"
+          >
+            <Award className="w-4 h-4" />
+            <span>ใบรับรอง E-Certificate</span>
+          </button>
+
           <a
             href={`/api/export?type=student&studentId=${data.student.studentId}`}
             target="_blank"
             rel="noreferrer"
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-md shadow-emerald-600/20 active:scale-95"
+            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white rounded-xl text-xs sm:text-sm font-bold transition shadow-md shadow-emerald-600/20 active:scale-95"
           >
             <Download className="w-4 h-4" />
-            <span>ดาวน์โหลด Activity Transcript (Excel)</span>
+            <span>ทรานสคริปต์ (Excel)</span>
           </a>
         </div>
       </div>
@@ -177,12 +208,21 @@ function StudentPortalContent() {
           </div>
         </div>
 
-        {/* QR Code Center Section */}
+        {/* QR Code Center Section with Dynamic Live Pass */}
         <div className="my-4 text-center relative z-10">
           <div className="p-3.5 bg-white rounded-2xl inline-block shadow-lg">
-            <QRCode value={data.student.studentId} size={150} />
+            <QRCode value={dynamicQrValue || data.student.studentId} size={150} />
           </div>
-          <p className="mt-3 font-mono font-black text-2xl tracking-widest text-white">{data.student.studentId}</p>
+
+          {/* Dynamic Live Indicator & Countdown */}
+          <div className="mt-2.5 flex items-center justify-center gap-1.5">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Dynamic Live Pass ({qrCountdown}s)
+            </span>
+          </div>
+
+          <p className="mt-2.5 font-mono font-black text-2xl tracking-widest text-white">{data.student.studentId}</p>
           <h2 className="text-lg font-bold text-purple-100">{data.student.name}</h2>
           
           <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
