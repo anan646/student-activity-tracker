@@ -26,7 +26,7 @@ const masterStudentMap = new Map<string, Student>();
   });
 });
 
-// กิจกรรมมาตรฐานจากระบบ UniPass มหาวิทยาลัยฟาฏอนี
+// กิจกรรมมาตรฐานจากระบบ EDU Pass คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี
 export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   {
     id: 'ACT-2026-01',
@@ -110,7 +110,7 @@ export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   },
 ];
 
-// ข้อมูลเช็คอินเริ่มต้นตามสถิติของ UniPass FTU
+// ข้อมูลเช็คอินเริ่มต้นตามสถิติของ EDU Pass FTU
 function generateInitialRecords(): AttendanceRecord[] {
   const students = Array.from(masterStudentMap.values());
   const initialRecords: AttendanceRecord[] = [];
@@ -253,12 +253,12 @@ export async function getStudents(): Promise<Student[]> {
   return results;
 }
 
-// 2. ดึงข้อมูลกิจกรรม (รวมกิจกรรม UniPass ม.ฟาฏอนี และกิจกรรมที่สร้างใน Google Sheet)
+// 2. ดึงข้อมูลกิจกรรม (รวมกิจกรรม EDU Pass คณะศึกษาศาสตร์ ม.ฟาฏอนี และกิจกรรมที่สร้างใน Google Sheet)
 export async function getActivities(): Promise<Activity[]> {
   const data = await fetchFromAppsScript();
   const activitiesMap = new Map<string, Activity>();
 
-  // ใส่กิจกรรมมาตรฐาน UniPass FTU ลงในรายการ
+  // ใส่กิจกรรมมาตรฐาน EDU Pass FTU ลงในรายการ
   DEFAULT_UNIPASS_ACTIVITIES.forEach((a) => {
     activitiesMap.set(a.id, a);
   });
@@ -295,7 +295,7 @@ export async function getAttendanceRecords(): Promise<AttendanceRecord[]> {
   const data = await fetchFromAppsScript();
   const recordsMap = new Map<string, AttendanceRecord>();
 
-  // ใส่ประวัติการเข้าร่วมกิจกรรมเริ่มต้นตามสถิติของ UniPass FTU
+  // ใส่ประวัติการเข้าร่วมกิจกรรมเริ่มต้นตามสถิติของ EDU Pass FTU
   cachedInitialRecords.forEach((r) => {
     recordsMap.set(r.id, r);
   });

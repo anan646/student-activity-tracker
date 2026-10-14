@@ -42,7 +42,7 @@ function StudentPortalContent() {
     // ดึง studentId จาก URL query หรือ localStorage
     let id = searchParams.get('id');
     if (!id) {
-      const saved = localStorage.getItem('unipass_user');
+      const saved = localStorage.getItem('edupass_user') || localStorage.getItem('unipass_user');
       if (saved) {
         try {
           const user = JSON.parse(saved);
@@ -132,7 +132,7 @@ function StudentPortalContent() {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
         <span className="inline-block animate-spin text-3xl">⏳</span>
-        <p className="text-sm font-bold text-purple-900/60">กำลังโหลดบัตร UniPass ของคุณ...</p>
+        <p className="text-sm font-bold text-purple-900/60">กำลังโหลดบัตร EDU Pass ของคุณ...</p>
       </div>
     );
   }
@@ -186,7 +186,7 @@ function StudentPortalContent() {
         </div>
       </div>
 
-      {/* Virtual Student Card (บัตรนักศึกษาดิจิทัล UniPass) */}
+      {/* Virtual Student Card (บัตรนักศึกษาดิจิทัล EDU Pass) */}
       <div className="max-w-md mx-auto bg-gradient-to-br from-purple-900 via-indigo-950 to-purple-950 text-white rounded-3xl p-6 sm:p-7 shadow-2xl shadow-purple-950/35 border border-purple-500/20 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-44 h-44 bg-fuchsia-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-0 w-44 h-44 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
@@ -198,8 +198,8 @@ function StudentPortalContent() {
               <GraduationCap className="w-6 h-6 text-purple-200" />
             </div>
             <div>
-              <h3 className="font-black text-sm tracking-wide text-white">FATONI UNIVERSITY</h3>
-              <p className="text-[10px] text-purple-200/70 font-semibold tracking-widest uppercase">Student UniPass ID</p>
+              <h3 className="font-black text-sm tracking-wide text-white">คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี</h3>
+              <p className="text-[10px] text-purple-200/70 font-semibold tracking-widest uppercase">Student EDU Pass ID</p>
             </div>
           </div>
 
@@ -328,7 +328,7 @@ function StudentPortalContent() {
           <div className="py-16 text-center text-purple-900/40">
             <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30 text-purple-600" />
             <p className="font-bold text-purple-900/60">ยังไม่มีประวัติการเช็คอินกิจกรรม</p>
-            <p className="text-xs text-purple-900/40 mt-1">เมื่อแสดงบัตร UniPass เพื่อสแกนหน้างาน ชั่วโมงจะแสดงขึ้นที่นี่</p>
+            <p className="text-xs text-purple-900/40 mt-1">เมื่อแสดงบัตร EDU Pass เพื่อสแกนหน้างาน ชั่วโมงจะแสดงขึ้นที่นี่</p>
           </div>
         ) : (
           <div className="divide-y divide-purple-50">
@@ -368,6 +368,14 @@ function StudentPortalContent() {
           </div>
         )}
       </div>
+
+      {/* Certificate Modal for Student */}
+      <CertificateModal
+        isOpen={isCertOpen}
+        onClose={() => setIsCertOpen(false)}
+        student={data.student}
+        totalHours={data.totalHours}
+      />
     </div>
   );
 }
@@ -378,7 +386,7 @@ export default function StudentPortal() {
       fallback={
         <div className="min-h-[70vh] flex flex-col items-center justify-center gap-3">
           <span className="inline-block animate-spin text-3xl">⏳</span>
-          <p className="text-sm font-bold text-purple-900/60">กำลังโหลดบัตร UniPass ของคุณ...</p>
+          <p className="text-sm font-bold text-purple-900/60">กำลังโหลดบัตร EDU Pass ของคุณ...</p>
         </div>
       }
     >

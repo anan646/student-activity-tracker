@@ -1,7 +1,7 @@
 {
-  "name": "UniPass FTU - ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา มหาวิทยาลัยฟาฏอนี",
-  "short_name": "UniPass FTU",
-  "description": "ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ มหาวิทยาลัยฟาฏอนี เชื่อมต่อ Google Sheets",
+  "name": "EDU Pass FTU - ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา คณะศึกษาศาสตร์",
+  "short_name": "EDU Pass FTU",
+  "description": "ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี เชื่อมต่อ Google Sheets",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",

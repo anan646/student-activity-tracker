@@ -57,7 +57,7 @@ export default function ProjectorModeModal({
 
   if (!isOpen || !activity) return null;
 
-  const currentHost = typeof window !== 'undefined' ? window.location.origin : 'https://unipass.ftu.ac.th';
+  const currentHost = typeof window !== 'undefined' ? window.location.origin : 'https://edupass.ftu.ac.th';
   const qrUrl = `${currentHost}/student?actId=${activity.id}`;
 
   const maxCap = activity.capacity || totalPool;
@@ -72,19 +72,19 @@ export default function ProjectorModeModal({
       <header className="relative z-10 flex items-center justify-between border-b border-white/10 pb-5">
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center font-black text-xl shadow-lg shadow-blue-500/30">
-            UP
+            ED
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white">
-                UniPass Projector Station
+                EDU Pass Projector Station
               </h1>
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black tracking-wide bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 animate-pulse">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
                 LIVE CHECK-IN
               </span>
             </div>
-            <p className="text-xs text-white/50 font-medium">มหาวิทยาลัยฟาฏอนี • Fatoni University</p>
+            <p className="text-xs text-white/50 font-medium">คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี • Faculty of Education</p>
           </div>
         </div>
 
@@ -202,7 +202,7 @@ export default function ProjectorModeModal({
                   <span>สแกนเพื่อเปิดบัตรหรือเช็คชื่อ</span>
                 </div>
                 <p className="text-xs text-slate-500 max-w-[240px]">
-                  เปิดกล้องโทรศัพท์สแกน QR Code นี้เพื่อเข้าสู่ระบบบัตรกิจกรรม UniPass ทันที
+                  เปิดกล้องโทรศัพท์สแกน QR Code นี้เพื่อเข้าสู่ระบบบัตรกิจกรรม EDU Pass ทันที
                 </p>
               </div>
             </div>

@@ -23,7 +23,7 @@ export function generateDynamicQrPayload(studentId: string): {
   const expiresInSeconds = 30 - (now % 30);
 
   return {
-    payload: `UNIPASS:${studentId}:${timeSlot}:${hash}`,
+    payload: `EDUPASS:${studentId}:${timeSlot}:${hash}`,
     expiresInSeconds,
   };
 }
@@ -37,8 +37,8 @@ export function verifyQrPayload(scannedRaw: string): {
 } {
   const trimmed = scannedRaw.trim();
 
-  // กรณีเป็น Dynamic QR Code: UNIPASS:<studentId>:<timeSlot>:<hash>
-  if (trimmed.startsWith('UNIPASS:')) {
+  // กรณีเป็น Dynamic QR Code: EDUPASS:<studentId>:<timeSlot>:<hash> หรือ UNIPASS:...
+  if (trimmed.startsWith('EDUPASS:') || trimmed.startsWith('UNIPASS:')) {
     const parts = trimmed.split(':');
     if (parts.length >= 4) {
       const studentId = parts[1];

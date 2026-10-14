@@ -9,8 +9,8 @@ export function exportStudentTranscript(
   const totalHours = records.reduce((sum, r) => sum + r.hoursEarned, 0);
 
   const data = [
-    ['ใบสรุปผลการเข้าร่วมกิจกรรมพัฒนานักศึกษา (UniPass Activity Transcript)'],
-    ['มหาวิทยาลัยฟาฏอนี (Fatoni University)'],
+    ['ใบสรุปผลการเข้าร่วมกิจกรรมพัฒนานักศึกษา (EDU Pass Activity Transcript)'],
+    ['คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี (Faculty of Education, Fatoni University)'],
     [],
     ['รหัสนักศึกษา:', student.studentId, 'ชื่อ-นามสกุล:', student.name],
     ['เพศ:', student.gender || 'ไม่ระบุ', 'สาขาวิชา:', student.major],

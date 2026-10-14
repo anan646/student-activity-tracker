@@ -74,16 +74,16 @@ export default function CertificateModal({
             </div>
 
             <p className="text-xs sm:text-sm font-bold tracking-widest text-amber-800 uppercase">
-              มหาวิทยาลัยฟาฏอนี • FATONI UNIVERSITY
+              คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี • FACULTY OF EDUCATION, FTU
             </p>
-            <p className="text-[11px] text-slate-400 font-medium">กองพัฒนานักศึกษาและกิจกรรมเสริมหลักสูตร</p>
+            <p className="text-[11px] text-slate-400 font-medium">ฝ่ายพัฒนานักศึกษาและกิจกรรมเสริมหลักสูตร</p>
 
             <h1 className="text-xl sm:text-3xl font-black text-slate-900 mt-4 mb-2 tracking-tight">
               ใบประกาศนียบัตรรับรองชั่วโมงกิจกรรม
             </h1>
 
             <p className="text-xs text-slate-500 mb-6 font-medium">
-              เอกสารรับรองการเข้าร่วมกิจกรรมพัฒนานักศึกษาตามเกณฑ์มาตรฐานมหาวิทยาลัย
+              เอกสารรับรองการเข้าร่วมกิจกรรมพัฒนานักศึกษาตามเกณฑ์มาตรฐานคณะศึกษาศาสตร์
             </p>
 
             <div className="my-6 py-4 border-y border-amber-200/60 max-w-lg mx-auto">
@@ -102,7 +102,7 @@ export default function CertificateModal({
             <p className="text-xs sm:text-sm text-slate-700 max-w-xl mx-auto leading-relaxed mb-8">
               ได้เข้าร่วมกิจกรรมพัฒนานักศึกษาและสะสมชั่วโมงกิจกรรมครบถ้วนรวมทั้งสิ้น{' '}
               <strong className="text-amber-700 text-base font-black font-mono">{totalHours}</strong>{' '}
-              ชั่วโมง {totalHours >= 60 ? '(ครบถ้วนตามเกณฑ์บังคับขั้นต่ำของมหาวิทยาลัย)' : ''}
+              ชั่วโมง {totalHours >= 60 ? '(ครบถ้วนตามเกณฑ์บังคับขั้นต่ำของคณะศึกษาศาสตร์)' : ''}
               <br />
               มีความมุ่งมั่น มีจิตสาธารณะ และร่วมสร้างสรรค์คุณประโยชน์แก่สังคม
             </p>
@@ -112,7 +112,7 @@ export default function CertificateModal({
               {/* QR Verification */}
               <div className="flex items-center gap-3 text-left">
                 <div className="p-2 bg-white rounded-xl border border-slate-200 shadow-sm">
-                  <QRCode value={`https://unipass.ftu.ac.th/verify?id=${student.studentId}`} size={64} />
+                  <QRCode value={`https://edupass.ftu.ac.th/verify?id=${student.studentId}`} size={64} />
                 </div>
                 <div>
                   <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-700">
@@ -127,10 +127,10 @@ export default function CertificateModal({
               {/* Official Seal / Signature */}
               <div className="text-center sm:text-right">
                 <div className="w-28 border-b border-slate-400 pb-1 mx-auto sm:ml-auto mb-1">
-                  <span className="font-serif italic font-bold text-slate-800 text-sm">UniPass FTU</span>
+                  <span className="font-serif italic font-bold text-slate-800 text-sm">EDU Pass FTU</span>
                 </div>
-                <p className="text-[11px] font-bold text-slate-800">กองพัฒนานักศึกษา มหาวิทยาลัยฟาฏอนี</p>
-                <p className="text-[10px] text-slate-400">Fatoni University Student Affairs</p>
+                <p className="text-[11px] font-bold text-slate-800">ฝ่ายพัฒนานักศึกษา คณะศึกษาศาสตร์</p>
+                <p className="text-[10px] text-slate-400">Faculty of Education, Fatoni University</p>
               </div>
             </div>
           </div>

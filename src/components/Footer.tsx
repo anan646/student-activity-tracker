@@ -11,7 +11,7 @@ export default function Footer() {
 
   return (
     <footer className="border-t border-purple-100/60 bg-white/70 backdrop-blur-md py-6 text-center text-xs text-purple-900/40">
-      <p>© ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา UniPass • มหาวิทยาลัยฟาฏอนี • เชื่อมต่อ Google Sheets</p>
+      <p>© ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา EDU Pass • คณะศึกษาศาสตร์ • เชื่อมต่อ Google Sheets</p>
     </footer>
   );
 }

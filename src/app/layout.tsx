@@ -11,13 +11,13 @@ const prompt = Prompt({
 });
 
 export const metadata: Metadata = {
-  title: 'ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา | Student Activity Tracker',
-  description: 'ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ เชื่อมต่อ Google Sheets',
+  title: 'EDU Pass | ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา คณะศึกษาศาสตร์',
+  description: 'ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี เชื่อมต่อ Google Sheets',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'UniPass FTU',
+    title: 'EDU Pass FTU',
   },
 };
 

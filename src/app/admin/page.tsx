@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import Link from 'next/link';
 import { 
   Home,
   CheckCircle2,
@@ -145,7 +146,7 @@ export default function AdminPortal() {
       window.addEventListener('offline', updateOnline);
 
       try {
-        const savedQueue = localStorage.getItem('unipass_offline_queue');
+        const savedQueue = localStorage.getItem('edupass_offline_queue') || localStorage.getItem('unipass_offline_queue');
         if (savedQueue) {
           const parsed = JSON.parse(savedQueue);
           if (Array.isArray(parsed)) setOfflineQueue(parsed);
@@ -285,6 +286,7 @@ export default function AdminPortal() {
       }
       setOfflineQueue([]);
       if (typeof window !== 'undefined') {
+        localStorage.removeItem('edupass_offline_queue');
         localStorage.removeItem('unipass_offline_queue');
       }
       playSuccessBeep();
@@ -367,7 +369,7 @@ export default function AdminPortal() {
       const updated = [...offlineQueue, newRecord];
       setOfflineQueue(updated);
       try {
-        localStorage.setItem('unipass_offline_queue', JSON.stringify(updated));
+        localStorage.setItem('edupass_offline_queue', JSON.stringify(updated));
       } catch (e) {}
       setRecords((prev) => [newRecord, ...prev]);
       playSuccessBeep();
@@ -408,7 +410,7 @@ export default function AdminPortal() {
       const updated = [...offlineQueue, newRecord];
       setOfflineQueue(updated);
       try {
-        localStorage.setItem('unipass_offline_queue', JSON.stringify(updated));
+        localStorage.setItem('edupass_offline_queue', JSON.stringify(updated));
       } catch (e) {}
       setRecords((prev) => [newRecord, ...prev]);
       playSuccessBeep();
@@ -725,8 +727,8 @@ export default function AdminPortal() {
           <div className="w-16 h-16 rounded-2xl bg-[#0070f3] text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/25">
             <ClipboardList className="w-8 h-8" />
           </div>
-          <h1 className="text-2xl font-black text-slate-900 mb-1">UniPass Staff Portal</h1>
-          <p className="text-xs text-slate-500 mb-6">เข้าสู่ระบบจัดการกิจกรรม มหาวิทยาลัยฟาฏอนี</p>
+          <h1 className="text-2xl font-black text-slate-900 mb-1">EDU Pass Staff Portal</h1>
+          <p className="text-xs text-slate-500 mb-6">เข้าสู่ระบบจัดการกิจกรรม คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี</p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -751,7 +753,7 @@ export default function AdminPortal() {
               type="submit"
               className="w-full py-3.5 bg-[#0070f3] hover:bg-[#0060df] active:scale-95 text-white font-bold rounded-xl transition shadow-md shadow-blue-500/25 cursor-pointer text-sm"
             >
-              เข้าสู่ระบบ UniPass
+              เข้าสู่ระบบ EDU Pass
             </button>
           </form>
 
@@ -763,6 +765,15 @@ export default function AdminPortal() {
             <div className="text-[11px] text-slate-500">
               • Staff Scanner (เจ้าหน้าที่สแกน): <span className="font-mono font-bold text-emerald-600">5678</span>
             </div>
+          </div>
+
+          <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-slate-700 transition"
+            >
+              <span>← กลับสู่หน้าบัตรนักศึกษา</span>
+            </Link>
           </div>
         </div>
       </div>
@@ -779,7 +790,7 @@ export default function AdminPortal() {
           <div className="w-8 h-8 rounded-lg bg-[#0070f3] text-white flex items-center justify-center shadow-sm">
             <ClipboardList className="w-5 h-5" />
           </div>
-          <span className="font-black text-lg text-slate-900">UniPass</span>
+          <span className="font-black text-lg text-slate-900">EDU Pass</span>
         </div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -789,7 +800,7 @@ export default function AdminPortal() {
         </button>
       </div>
 
-      {/* Left Sidebar (โครงสร้างและ UI ถอดแบบจาก UniPass FTU ในภาพต้นฉบับ 100%) */}
+      {/* Left Sidebar (โครงสร้างและ UI ถอดแบบจาก EDU Pass FTU ในภาพต้นฉบับ 100%) */}
       <aside
         className={`fixed md:sticky top-0 left-0 z-40 h-screen w-64 md:w-68 bg-white border-r border-slate-200/80 flex flex-col shrink-0 transition-transform duration-200 ease-in-out ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
@@ -801,8 +812,8 @@ export default function AdminPortal() {
             <ClipboardList className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="font-black text-lg text-slate-900 tracking-tight leading-none">UniPass</h1>
-            <p className="text-[11px] text-slate-400 font-medium mt-1">กิจกรรม มหาวิทยาลัยฟาฏอนี</p>
+            <h1 className="font-black text-lg text-slate-900 tracking-tight leading-none">EDU Pass</h1>
+            <p className="text-[11px] text-slate-400 font-medium mt-1">กิจกรรม คณะศึกษาศาสตร์</p>
           </div>
         </div>
 
@@ -1300,7 +1311,7 @@ export default function AdminPortal() {
                     </div>
 
                     <p className="text-xs text-slate-600 mt-3 mb-6 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
-                      กดปุ่มด้านล่างเพื่อเปิดกล้องสแกน QR Code จากบัตร UniPass ของนักศึกษา สแกนต่อเนื่องได้ทันที
+                      กดปุ่มด้านล่างเพื่อเปิดกล้องสแกน QR Code จากบัตร EDU Pass ของนักศึกษา สแกนต่อเนื่องได้ทันที
                     </p>
                   </div>
 
@@ -2294,11 +2305,11 @@ export default function AdminPortal() {
                 </div>
                 <h2 className="text-2xl font-black text-slate-900 mb-1">ลิงก์และ QR Code สำหรับแชร์</h2>
                 <p className="text-xs text-slate-500 mb-6">
-                  แชร์ลิงก์ระบบเพื่อให้นักศึกษาเข้าสู่หน้าบัตร UniPass ของตนเอง
+                  แชร์ลิงก์ระบบเพื่อให้นักศึกษาเข้าสู่หน้าบัตร EDU Pass ของตนเอง
                 </p>
 
                 <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 mb-6 flex items-center justify-between gap-3 text-xs font-mono text-slate-700">
-                  <span className="truncate">https://unipass.ftu.ac.th/login</span>
+                  <span className="truncate">https://edupass.ftu.ac.th/login</span>
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(window.location.origin + '/login');
