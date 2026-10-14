@@ -293,9 +293,13 @@ export default function AdminPortal() {
         const newRecs: AttendanceRecord[] = event.payload?.records || [];
         if (newRecs.length > 0) {
           setRecords((prev) => {
+            const getRecordKey = (r: AttendanceRecord) =>
+              r.checkInType === 'MANUAL_GRANT'
+                ? r.id
+                : `${r.studentId}_${r.activityId}_${r.checkInType || 'SINGLE'}`;
             const map = new Map<string, AttendanceRecord>();
-            prev.forEach((r) => map.set(r.id, r));
-            newRecs.forEach((r) => map.set(r.id, r));
+            prev.forEach((r) => map.set(getRecordKey(r), r));
+            newRecs.forEach((r) => map.set(getRecordKey(r), r));
             return Array.from(map.values());
           });
         }
@@ -656,6 +660,7 @@ export default function AdminPortal() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'record_attendance',
+          records: [newRecord],
           studentIds: [cleanId],
           activity: selectedActivity,
           checkInType: currentCheckInType,
@@ -665,7 +670,17 @@ export default function AdminPortal() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'เช็คอินไม่สำเร็จ');
 
-      setRecords((prev) => [newRecord, ...prev]);
+      const savedRec = result.records?.[0] || newRecord;
+      setRecords((prev) => {
+        const getRecordKey = (r: AttendanceRecord) =>
+          r.checkInType === 'MANUAL_GRANT'
+            ? r.id
+            : `${r.studentId}_${r.activityId}_${r.checkInType || 'SINGLE'}`;
+        const map = new Map<string, AttendanceRecord>();
+        prev.forEach((r) => map.set(getRecordKey(r), r));
+        map.set(getRecordKey(savedRec), savedRec);
+        return Array.from(map.values());
+      });
       playSuccessBeep();
       const roundText = currentCheckInType === 'IN' ? ' (รอบเข้า IN)' : currentCheckInType === 'OUT' ? ' (รอบออก OUT)' : '';
       setMessage({
@@ -736,8 +751,8 @@ export default function AdminPortal() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'บันทึกไม่สำเร็จ');
 
-      const newRecs: AttendanceRecord[] = rawIds.map((sid, idx) => ({
-        id: `REC-${Date.now()}-${idx}`,
+      const savedRecs: AttendanceRecord[] = result.records || rawIds.map((sid, idx) => ({
+        id: `REC-${selectedActivity.id}-${sid}-${Date.now().toString().slice(-4)}-${idx}`,
         studentId: sid,
         activityId: selectedActivity.id,
         activityTitle: selectedActivity.title,
@@ -748,7 +763,16 @@ export default function AdminPortal() {
         checkInType: currentCheckInType,
       }));
 
-      setRecords((prev) => [...newRecs, ...prev]);
+      setRecords((prev) => {
+        const getRecordKey = (r: AttendanceRecord) =>
+          r.checkInType === 'MANUAL_GRANT'
+            ? r.id
+            : `${r.studentId}_${r.activityId}_${r.checkInType || 'SINGLE'}`;
+        const map = new Map<string, AttendanceRecord>();
+        prev.forEach((r) => map.set(getRecordKey(r), r));
+        savedRecs.forEach((r) => map.set(getRecordKey(r), r));
+        return Array.from(map.values());
+      });
       playSuccessBeep();
       setMessage({
         text: `✅ บันทึกเช็คอินเรียบร้อย ${rawIds.length} คน!`,

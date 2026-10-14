@@ -12,23 +12,30 @@ export interface UseRealtimeSyncOptions {
 }
 
 export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
-  const { enabled = true, onEvent, onStateUpdate, pollIntervalMs = 4000 } = options;
+  const { enabled = true, onEvent, onStateUpdate, pollIntervalMs = 3500 } = options;
   const [isConnected, setIsConnected] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const versionRef = useRef<number>(0);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const handleIncomingEvent = useCallback(
-    (event: SyncEvent) => {
-      versionRef.current = Math.max(versionRef.current, event.version);
-      setLastSyncTime(new Date());
+  // Store callbacks in refs to prevent tear-down/reconnect on every parent re-render
+  const onEventRef = useRef(onEvent);
+  const onStateUpdateRef = useRef(onStateUpdate);
 
-      if (onEvent) {
-        onEvent(event);
-      }
-    },
-    [onEvent]
-  );
+  useEffect(() => {
+    onEventRef.current = onEvent;
+    onStateUpdateRef.current = onStateUpdate;
+  });
+
+  const handleIncomingEvent = useCallback((event: SyncEvent) => {
+    versionRef.current = Math.max(versionRef.current, event.version);
+    setLastSyncTime(new Date());
+
+    if (onEventRef.current) {
+      onEventRef.current(event);
+    }
+  }, []);
 
   // 1. Establish Server-Sent Events (SSE) connection
   useEffect(() => {
@@ -37,6 +44,13 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
     let isSubscribed = true;
 
     function connectSSE() {
+      if (!isSubscribed) return;
+
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+
       try {
         if (eventSourceRef.current) {
           eventSourceRef.current.close();
@@ -58,8 +72,8 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
             const data = JSON.parse(e.data);
             if (data.type === 'INITIAL_STATE') {
               versionRef.current = data.version;
-              if (onStateUpdate && data.state) {
-                onStateUpdate(data.state);
+              if (onStateUpdateRef.current && data.state) {
+                onStateUpdateRef.current(data.state);
               }
             } else if (data.type && data.version) {
               handleIncomingEvent(data as SyncEvent);
@@ -70,14 +84,17 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
         };
 
         es.onerror = () => {
-          if (isSubscribed) {
-            setIsConnected(false);
+          if (!isSubscribed) return;
+          setIsConnected(false);
+          try {
             es.close();
-            // ลองเชื่อมต่อใหม่หลังจาก 3 วินาที
-            setTimeout(() => {
-              if (isSubscribed) connectSSE();
-            }, 3000);
-          }
+          } catch (e) {}
+
+          // Auto-reconnect after 3 seconds
+          if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (isSubscribed) connectSSE();
+          }, 3000);
         };
       } catch (err) {
         console.error('SSE initialization error:', err);
@@ -88,20 +105,27 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
 
     return () => {
       isSubscribed = false;
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
     };
-  }, [enabled, handleIncomingEvent, onStateUpdate]);
+  }, [enabled, handleIncomingEvent]);
 
-  // 2. High-speed Fallback Polling (สำรองข้อมูลกรณีหลุดการเชื่อมต่อ หรืออุปกรณ์พับหน้าจอ)
+  // 2. High-speed Fallback Polling (Ensures real-time sync when offline, behind university proxy, or on sleeping mobile devices)
   useEffect(() => {
     if (!enabled || typeof window === 'undefined') return;
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`/api/sync?sinceVersion=${versionRef.current}`);
+        const res = await fetch(`/api/sync?sinceVersion=${versionRef.current}`, {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+        });
         if (!res.ok) return;
 
         const data = await res.json();
@@ -110,17 +134,65 @@ export function useRealtimeSync(options: UseRealtimeSyncOptions = {}) {
         if (!data.upToDate && data.state) {
           versionRef.current = data.version;
           setLastSyncTime(new Date());
-          if (onStateUpdate) {
-            onStateUpdate(data.state);
+          if (onStateUpdateRef.current) {
+            onStateUpdateRef.current(data.state);
           }
         }
       } catch (err) {
-        // เงียบไว้เพื่อไม่รบกวน console ระหว่าง offline
+        // Silent during offline transitions
       }
     }, pollIntervalMs);
 
     return () => clearInterval(interval);
-  }, [enabled, onStateUpdate, pollIntervalMs]);
+  }, [enabled, pollIntervalMs]);
+
+  // 3. Mobile PWA Sleep/Wake & Tab Focus Listener: Instantly resync when returning to app
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return;
+
+    const triggerImmediateSync = async () => {
+      if (document.visibilityState === 'visible') {
+        // Re-check SSE connection
+        if (
+          !eventSourceRef.current ||
+          eventSourceRef.current.readyState === EventSource.CLOSED
+        ) {
+          try {
+            if (eventSourceRef.current) eventSourceRef.current.close();
+            const es = new EventSource('/api/sync?stream=true');
+            eventSourceRef.current = es;
+          } catch (e) {}
+        }
+
+        // Trigger immediate delta sync
+        try {
+          const res = await fetch(`/api/sync?sinceVersion=${versionRef.current}`, {
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache' },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setIsConnected(true);
+            if (!data.upToDate && data.state) {
+              versionRef.current = data.version;
+              setLastSyncTime(new Date());
+              if (onStateUpdateRef.current) {
+                onStateUpdateRef.current(data.state);
+              }
+            }
+          }
+        } catch (e) {}
+      }
+    };
+
+    document.addEventListener('visibilitychange', triggerImmediateSync);
+    window.addEventListener('focus', triggerImmediateSync);
+
+    return () => {
+      document.removeEventListener('visibilitychange', triggerImmediateSync);
+      window.removeEventListener('focus', triggerImmediateSync);
+    };
+  }, [enabled]);
 
   return {
     isConnected,
@@ -140,17 +212,25 @@ export function useStudentRealtimeSync(
   const [isLiveConnected, setIsLiveConnected] = useState(false);
   const [notification, setNotification] = useState<{ title: string; hours: number } | null>(null);
 
-  useRealtimeSync({
-    enabled: !!studentId,
-    pollIntervalMs: 5000,
-    onEvent: (event: SyncEvent) => {
+  const onNewHoursEarnedRef = useRef(onNewHoursEarned);
+  const onRefreshNeededRef = useRef(onRefreshNeeded);
+
+  useEffect(() => {
+    onNewHoursEarnedRef.current = onNewHoursEarned;
+    onRefreshNeededRef.current = onRefreshNeeded;
+  });
+
+  const handleRealtimeEvent = useCallback(
+    (event: SyncEvent) => {
       setIsLiveConnected(true);
 
       // ตรวจสอบว่ามีการบันทึกกิจกรรม หรือเทียบโอนชั่วโมงให้นักศึกษาคนนี้หรือไม่
       if (event.type === 'RECORD_ATTENDANCE' || event.type === 'MANUAL_GRANT_CREDIT') {
         const records = event.payload?.records;
         if (Array.isArray(records)) {
-          const match = records.find((r: any) => String(r.studentId).trim() === String(studentId).trim());
+          const match = records.find(
+            (r: any) => String(r.studentId).trim() === String(studentId).trim()
+          );
           if (match) {
             playSuccessBeep();
             setNotification({
@@ -158,26 +238,39 @@ export function useStudentRealtimeSync(
               hours: match.hoursEarned,
             });
 
-            if (onNewHoursEarned) {
-              onNewHoursEarned(match.activityTitle, match.hoursEarned);
+            if (onNewHoursEarnedRef.current) {
+              onNewHoursEarnedRef.current(match.activityTitle, match.hoursEarned);
             }
-            if (onRefreshNeeded) {
-              onRefreshNeeded();
+            if (onRefreshNeededRef.current) {
+              onRefreshNeededRef.current();
             }
           }
         }
-      } else if (event.type === 'UPDATE_SETTINGS' || event.type === 'DELETE_ACTIVITY') {
-        if (onRefreshNeeded) {
-          onRefreshNeeded();
+      } else if (
+        event.type === 'UPDATE_SETTINGS' ||
+        event.type === 'DELETE_ACTIVITY' ||
+        event.type === 'CREATE_ACTIVITY'
+      ) {
+        if (onRefreshNeededRef.current) {
+          onRefreshNeededRef.current();
         }
       }
     },
-    onStateUpdate: () => {
-      setIsLiveConnected(true);
-      if (onRefreshNeeded) {
-        onRefreshNeeded();
-      }
-    },
+    [studentId]
+  );
+
+  const handleRealtimeStateUpdate = useCallback(() => {
+    setIsLiveConnected(true);
+    if (onRefreshNeededRef.current) {
+      onRefreshNeededRef.current();
+    }
+  }, []);
+
+  useRealtimeSync({
+    enabled: !!studentId,
+    pollIntervalMs: 4000,
+    onEvent: handleRealtimeEvent,
+    onStateUpdate: handleRealtimeStateUpdate,
   });
 
   return {

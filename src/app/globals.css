@@ -34,3 +34,20 @@ body {
   background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
   border: 1px solid #d8b4fe;
 }
+
+/* Print Styles for E-Certificates and Reports */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  nav, footer, .print\:hidden {
+    display: none !important;
+  }
+  .fixed {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+  }
+}
+

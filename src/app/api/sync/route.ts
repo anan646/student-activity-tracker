@@ -72,13 +72,19 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  const noCacheHeaders = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+  };
+
   // 2. High-speed Delta / Polling Check
   if (sinceVersion > 0 && sinceVersion === store.version) {
     return NextResponse.json({
       upToDate: true,
       version: store.version,
       lastUpdated: store.lastUpdated,
-    });
+    }, { headers: noCacheHeaders });
   }
 
   return NextResponse.json({
@@ -86,7 +92,7 @@ export async function GET(req: NextRequest) {
     version: store.version,
     lastUpdated: store.lastUpdated,
     state: store,
-  });
+  }, { headers: noCacheHeaders });
 }
 
 export async function POST(req: NextRequest) {

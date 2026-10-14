@@ -229,9 +229,19 @@ function StudentPortalContent() {
               <span className="text-xs font-mono font-bold text-purple-900/40">
                 {data.student.studentId}
               </span>
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>สด เรียลไทม์</span>
+              <span
+                className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-bold transition-all ${
+                  isLiveConnected
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                }`}
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isLiveConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+                  }`}
+                />
+                <span>{isLiveConnected ? 'สด เรียลไทม์' : 'กำลังเชื่อมต่อ'}</span>
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-purple-950">{data.student.name}</h1>

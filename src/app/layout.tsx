@@ -36,6 +36,8 @@ export const viewport: Viewport = {
 };
 
 import Footer from '@/components/Footer';
+import PwaRegister from '@/components/PwaRegister';
+import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 
 export default function RootLayout({
   children,
@@ -44,10 +46,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="th" className={prompt.variable}>
-      <body className="font-sans antialiased bg-[#f8fafc] text-[#1e1333] min-h-screen flex flex-col selection:bg-blue-100 selection:text-blue-900">
+      <body className="font-sans antialiased bg-[#f8fafc] text-[#1e1333] min-h-screen flex flex-col selection:bg-purple-100 selection:text-purple-900">
+        <PwaRegister />
         <Navbar />
         <main className="flex-1">{children}</main>
         <Footer />
+        <PwaInstallPrompt />
       </body>
     </html>
   );

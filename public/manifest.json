@@ -2,11 +2,14 @@
   "name": "EDU Pass FTU - ระบบบันทึกชั่วโมงกิจกรรม คณะศึกษาศาสตร์",
   "short_name": "EDU Pass",
   "description": "ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี เชื่อมต่อระบบเรียลไทม์",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#7c3aed",
-  "orientation": "portrait-primary",
+  "orientation": "any",
+  "categories": ["education"],
   "icons": [
     {
       "src": "/icon-192x192.png",

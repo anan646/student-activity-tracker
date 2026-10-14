@@ -306,9 +306,14 @@ export function getServerStore(): ServerStoreState {
 export function recordAttendanceInStore(newRecords: AttendanceRecord[]): SyncEvent {
   const state = loadOrInitState();
 
+  const getRecordKey = (r: AttendanceRecord) =>
+    r.checkInType === 'MANUAL_GRANT'
+      ? r.id
+      : `${r.studentId}_${r.activityId}_${r.checkInType || 'SINGLE'}`;
+
   const recordMap = new Map<string, AttendanceRecord>();
-  state.records.forEach((r) => recordMap.set(r.id, r));
-  newRecords.forEach((r) => recordMap.set(r.id, r));
+  state.records.forEach((r) => recordMap.set(getRecordKey(r), r));
+  newRecords.forEach((r) => recordMap.set(getRecordKey(r), r));
 
   state.records = Array.from(recordMap.values());
 

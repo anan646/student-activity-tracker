@@ -38,6 +38,12 @@ export async function GET(request: Request) {
 
     const status = studentStatusMap[studentId] || student.status || 'ACTIVE';
 
+    const noCacheHeaders = {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      Pragma: 'no-cache',
+      Expires: '0',
+    };
+
     return NextResponse.json({
       student: {
         ...student,
@@ -48,8 +54,14 @@ export async function GET(request: Request) {
       hoursByCategory,
       records: studentRecords,
       version: store.version,
-    });
+    }, { headers: noCacheHeaders });
   }
+
+  const noCacheHeaders = {
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    Pragma: 'no-cache',
+    Expires: '0',
+  };
 
   return NextResponse.json({
     students,
@@ -58,5 +70,5 @@ export async function GET(request: Request) {
     studentStatusMap,
     settings,
     version: store.version,
-  });
+  }, { headers: noCacheHeaders });
 }
