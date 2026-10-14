@@ -14,6 +14,16 @@ export const metadata: Metadata = {
   title: 'EDU Pass | ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา คณะศึกษาศาสตร์',
   description: 'ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี เชื่อมต่อ Google Sheets',
   manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon.ico' },
+    ],
+    apple: [
+      { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -22,7 +32,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0070f3',
+  themeColor: '#7c3aed',
 };
 
 import Footer from '@/components/Footer';

@@ -215,6 +215,17 @@ function loadOrInitState(): ServerStoreState {
       const fileContent = fs.readFileSync(DB_PATH, 'utf-8');
       const parsed = JSON.parse(fileContent);
       if (parsed && Array.isArray(parsed.students) && Array.isArray(parsed.activities)) {
+        if (!parsed.settings) {
+          parsed.settings = {
+            requiredHours: 60,
+            superAdminPin: '1234',
+            staffScannerPin: '5678',
+          };
+        } else {
+          parsed.settings.requiredHours = Number(parsed.settings.requiredHours) || 60;
+          parsed.settings.superAdminPin = String(parsed.settings.superAdminPin || '1234');
+          parsed.settings.staffScannerPin = String(parsed.settings.staffScannerPin || '5678');
+        }
         globalThis.__edupass_server_store__ = parsed;
         return parsed;
       }
@@ -229,20 +240,16 @@ function loadOrInitState(): ServerStoreState {
   return fresh;
 }
 
-let saveTimeout: NodeJS.Timeout | null = null;
 function persistToDisk(state: ServerStoreState) {
-  if (saveTimeout) clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(() => {
-    try {
-      const dir = path.dirname(DB_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(DB_PATH, JSON.stringify(state, null, 2), 'utf-8');
-    } catch (err) {
-      console.error('Error saving db.json:', err);
+  try {
+    const dir = path.dirname(DB_PATH);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
-  }, 300);
+    fs.writeFileSync(DB_PATH, JSON.stringify(state, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving db.json:', err);
+  }
 }
 
 function getSubscribers(): Set<Subscriber> {
@@ -363,6 +370,23 @@ export function updateStudentStatusInStore(studentId: string, status: StudentSta
 // 8. อัปเดตการตั้งค่าระบบ (เกณฑ์ชั่วโมงกิจกรรมขั้นต่ำ หรือ รหัส PIN)
 export function updateSettingsInStore(settings: Partial<SystemSettings>): SyncEvent {
   const state = loadOrInitState();
-  state.settings = { ...state.settings, ...settings };
+  const updatedSettings = { ...state.settings };
+
+  if (settings.requiredHours !== undefined && settings.requiredHours !== null) {
+    const cleanHours = Number(settings.requiredHours);
+    if (!isNaN(cleanHours) && cleanHours > 0) {
+      updatedSettings.requiredHours = cleanHours;
+    }
+  }
+
+  if (settings.superAdminPin) {
+    updatedSettings.superAdminPin = String(settings.superAdminPin).trim();
+  }
+
+  if (settings.staffScannerPin) {
+    updatedSettings.staffScannerPin = String(settings.staffScannerPin).trim();
+  }
+
+  state.settings = updatedSettings;
   return broadcastEvent('UPDATE_SETTINGS', { settings: state.settings });
 }

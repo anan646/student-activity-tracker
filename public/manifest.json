@@ -1,16 +1,45 @@
 {
-  "name": "EDU Pass FTU - ระบบบันทึกชั่วโมงกิจกรรมนักศึกษา คณะศึกษาศาสตร์",
-  "short_name": "EDU Pass FTU",
-  "description": "ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี เชื่อมต่อ Google Sheets",
+  "name": "EDU Pass FTU - ระบบบันทึกชั่วโมงกิจกรรม คณะศึกษาศาสตร์",
+  "short_name": "EDU Pass",
+  "description": "ระบบบันทึกและตรวจสอบชั่วโมงกิจกรรมนักศึกษาออนไลน์ คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี เชื่อมต่อระบบเรียลไทม์",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#0070f3",
-  "orientation": "portrait",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
   "icons": [
     {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
       "src": "/favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
+      "sizes": "48x48 32x32 16x16",
       "type": "image/x-icon"
     }
   ]

@@ -154,6 +154,7 @@ export default function AdminPortal() {
 
   // เกณฑ์ชั่วโมงกิจกรรมขั้นต่ำ (Required Hours Criteria)
   const [requiredHours, setRequiredHours] = useState<number>(60);
+  const [tempRequiredHours, setTempRequiredHours] = useState<number>(60);
 
   // Dynamic PINs สำหรับ Super Admin และ Staff Scanner
   const [superAdminPin, setSuperAdminPin] = useState<string>('1234');
@@ -233,7 +234,13 @@ export default function AdminPortal() {
         }
 
         const savedHours = localStorage.getItem('edupass_required_hours');
-        if (savedHours) setRequiredHours(Number(savedHours) || 60);
+        if (savedHours) {
+          const parsed = Number(savedHours);
+          if (!isNaN(parsed) && parsed > 0) {
+            setRequiredHours(parsed);
+            setTempRequiredHours(parsed);
+          }
+        }
 
         const savedSuperPin = localStorage.getItem('edupass_superadmin_pin');
         if (savedSuperPin) {
@@ -332,14 +339,22 @@ export default function AdminPortal() {
       } else if (event.type === 'UPDATE_SETTINGS') {
         const settings = event.payload?.settings;
         if (settings) {
-          if (settings.requiredHours) setRequiredHours(settings.requiredHours);
+          if (settings.requiredHours) {
+            const h = Number(settings.requiredHours);
+            if (!isNaN(h) && h > 0) {
+              setRequiredHours(h);
+              if (!isPasswordModalOpen) {
+                setTempRequiredHours(h);
+              }
+            }
+          }
           if (settings.superAdminPin) {
             setSuperAdminPin(settings.superAdminPin);
-            setTempSuperPin(settings.superAdminPin);
+            if (!isPasswordModalOpen) setTempSuperPin(settings.superAdminPin);
           }
           if (settings.staffScannerPin) {
             setStaffScannerPin(settings.staffScannerPin);
-            setTempStaffPin(settings.staffScannerPin);
+            if (!isPasswordModalOpen) setTempStaffPin(settings.staffScannerPin);
           }
         }
       }
@@ -350,7 +365,15 @@ export default function AdminPortal() {
       if (serverState.records) setRecords(serverState.records);
       if (serverState.studentStatusMap) setStudentStatusMap(serverState.studentStatusMap);
       if (serverState.settings) {
-        if (serverState.settings.requiredHours) setRequiredHours(serverState.settings.requiredHours);
+        if (serverState.settings.requiredHours) {
+          const h = Number(serverState.settings.requiredHours);
+          if (!isNaN(h) && h > 0) {
+            setRequiredHours(h);
+            if (!isPasswordModalOpen) {
+              setTempRequiredHours(h);
+            }
+          }
+        }
         if (serverState.settings.superAdminPin) setSuperAdminPin(serverState.settings.superAdminPin);
         if (serverState.settings.staffScannerPin) setStaffScannerPin(serverState.settings.staffScannerPin);
       }
@@ -384,7 +407,25 @@ export default function AdminPortal() {
         setStudentStatusMap(data.studentStatusMap);
       }
       if (data.settings) {
-        if (data.settings.requiredHours) setRequiredHours(data.settings.requiredHours);
+        if (data.settings.requiredHours) {
+          const serverHrs = Number(data.settings.requiredHours);
+          const localHrs = typeof window !== 'undefined' ? Number(localStorage.getItem('edupass_required_hours')) : 0;
+          if (localHrs && localHrs !== 60 && serverHrs === 60) {
+            fetch('/api/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ action: 'update_settings', settings: { requiredHours: localHrs } }),
+            }).catch(() => {});
+            setRequiredHours(localHrs);
+            if (!isPasswordModalOpen) setTempRequiredHours(localHrs);
+          } else {
+            setRequiredHours(serverHrs);
+            if (!isPasswordModalOpen) setTempRequiredHours(serverHrs);
+            try {
+              localStorage.setItem('edupass_required_hours', String(serverHrs));
+            } catch (e) {}
+          }
+        }
         if (data.settings.superAdminPin) setSuperAdminPin(data.settings.superAdminPin);
         if (data.settings.staffScannerPin) setStaffScannerPin(data.settings.staffScannerPin);
       }
@@ -1820,7 +1861,12 @@ export default function AdminPortal() {
 
           {userRole === 'superadmin' && (
             <button
-              onClick={() => setIsPasswordModalOpen(true)}
+              onClick={() => {
+                setTempRequiredHours(requiredHours);
+                setTempSuperPin(superAdminPin);
+                setTempStaffPin(staffScannerPin);
+                setIsPasswordModalOpen(true);
+              }}
               className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs transition border border-slate-200/80 cursor-pointer"
             >
               <Settings2 className="w-3.5 h-3.5 text-slate-500" />
@@ -4015,70 +4061,87 @@ export default function AdminPortal() {
                 </div>
 
                 {/* Big Number Display & Steppers */}
-                <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-100 text-center space-y-3">
+                <div className="p-6 rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50/50 border border-blue-100 text-center space-y-4">
                   <div className="text-xs font-bold text-blue-700 uppercase tracking-wider">
-                    เกณฑ์ชั่วโมงกิจกรรมขั้นต่ำปัจจุบัน
+                    เกณฑ์ชั่วโมงกิจกรรมขั้นต่ำที่ต้องการตั้งค่า
                   </div>
                   <div className="text-5xl font-black text-[#0070f3] tracking-tight">
-                    {requiredHours} <span className="text-xl font-bold text-slate-500">ชม.</span>
+                    {tempRequiredHours} <span className="text-xl font-bold text-slate-500">ชม.</span>
                   </div>
 
                   {/* Stepper Buttons: -10, -5, -1, +1, +5, +10 */}
-                  <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2">
+                  <div className="flex flex-wrap items-center justify-center gap-1.5 pt-1">
                     <button
                       type="button"
-                      onClick={() => setRequiredHours((h) => Math.max(10, h - 10))}
+                      onClick={() => setTempRequiredHours((h) => Math.max(1, h - 10))}
                       className="px-2.5 py-1.5 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold text-xs rounded-lg transition cursor-pointer"
                     >
                       -10
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRequiredHours((h) => Math.max(10, h - 5))}
+                      onClick={() => setTempRequiredHours((h) => Math.max(1, h - 5))}
                       className="px-2.5 py-1.5 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold text-xs rounded-lg transition cursor-pointer"
                     >
                       -5
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRequiredHours((h) => Math.max(10, h - 1))}
+                      onClick={() => setTempRequiredHours((h) => Math.max(1, h - 1))}
                       className="px-2.5 py-1.5 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold text-xs rounded-lg transition cursor-pointer"
                     >
                       -1
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRequiredHours((h) => Math.min(200, h + 1))}
+                      onClick={() => setTempRequiredHours((h) => Math.min(300, h + 1))}
                       className="px-2.5 py-1.5 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold text-xs rounded-lg transition cursor-pointer"
                     >
                       +1
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRequiredHours((h) => Math.min(200, h + 5))}
+                      onClick={() => setTempRequiredHours((h) => Math.min(300, h + 5))}
                       className="px-2.5 py-1.5 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold text-xs rounded-lg transition cursor-pointer"
                     >
                       +5
                     </button>
                     <button
                       type="button"
-                      onClick={() => setRequiredHours((h) => Math.min(200, h + 10))}
+                      onClick={() => setTempRequiredHours((h) => Math.min(300, h + 10))}
                       className="px-2.5 py-1.5 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold text-xs rounded-lg transition cursor-pointer"
                     >
                       +10
                     </button>
                   </div>
 
+                  {/* Direct input option */}
+                  <div className="flex items-center justify-center gap-2 pt-1">
+                    <span className="text-xs text-slate-500 font-medium">หรือพิมพ์ระบุ:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      max="300"
+                      value={tempRequiredHours}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        if (!isNaN(val)) setTempRequiredHours(Math.max(1, Math.min(300, val)));
+                      }}
+                      className="w-20 px-2 py-1 text-center font-black text-slate-800 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#0070f3]"
+                    />
+                    <span className="text-xs text-slate-600 font-bold">ชั่วโมง</span>
+                  </div>
+
                   {/* Preset Pills */}
-                  <div className="flex items-center justify-center gap-2 pt-2 text-[11px]">
+                  <div className="flex items-center justify-center gap-2 pt-1 text-[11px]">
                     <span className="text-slate-400 font-medium">ค่าแนะนำ:</span>
                     {[40, 50, 60, 80, 100].map((preset) => (
                       <button
                         key={preset}
                         type="button"
-                        onClick={() => setRequiredHours(preset)}
-                        className={`px-2 py-0.5 rounded-md font-bold transition cursor-pointer ${
-                          requiredHours === preset
+                        onClick={() => setTempRequiredHours(preset)}
+                        className={`px-2.5 py-1 rounded-lg font-bold transition cursor-pointer ${
+                          tempRequiredHours === preset
                             ? 'bg-[#0070f3] text-white shadow-xs'
                             : 'bg-white text-slate-600 hover:bg-blue-100 border border-slate-200'
                         }`}
@@ -4092,29 +4155,45 @@ export default function AdminPortal() {
                 <div className="flex gap-2 pt-2">
                   <button
                     type="button"
-                    onClick={() => setIsPasswordModalOpen(false)}
+                    onClick={() => {
+                      setTempRequiredHours(requiredHours);
+                      setIsPasswordModalOpen(false);
+                    }}
                     className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
                   >
                     ยกเลิก
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
+                      const finalHours = Number(tempRequiredHours) || 60;
+                      setRequiredHours(finalHours);
                       try {
-                        localStorage.setItem('edupass_required_hours', String(requiredHours));
+                        localStorage.setItem('edupass_required_hours', String(finalHours));
                       } catch (e) {}
 
-                      fetch('/api/sync', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'update_settings', settings: { requiredHours } }),
-                      }).catch((e) => console.warn('Update settings sync note:', e));
+                      try {
+                        const res = await fetch('/api/sync', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ action: 'update_settings', settings: { requiredHours: finalHours } }),
+                        });
+                        if (res.ok) {
+                          playSuccessBeep();
+                          setMessage({
+                            text: `🎯 ปรับเกณฑ์ชั่วโมงกิจกรรมขั้นต่ำเป็น ${finalHours} ชั่วโมงเรียบร้อยแล้ว`,
+                            type: 'success',
+                          });
+                        }
+                      } catch (err) {
+                        console.warn('Update settings sync note:', err);
+                        playSuccessBeep();
+                        setMessage({
+                          text: `🎯 ปรับเกณฑ์ชั่วโมงกิจกรรมเป็น ${finalHours} ชม. เรียบร้อยแล้ว`,
+                          type: 'success',
+                        });
+                      }
 
-                      playSuccessBeep();
-                      setMessage({
-                        text: `🎯 ปรับเกณฑ์ชั่วโมงกิจกรรมขั้นต่ำเป็น ${requiredHours} ชั่วโมงเรียบร้อยแล้ว`,
-                        type: 'success',
-                      });
                       setIsPasswordModalOpen(false);
                     }}
                     className="flex-1 py-3 rounded-xl bg-[#0070f3] hover:bg-[#0060df] text-white font-bold text-xs transition shadow-sm cursor-pointer"
