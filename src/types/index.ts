@@ -1,3 +1,5 @@
+export type StudentStatus = 'ACTIVE' | 'GRADUATED' | 'WITHDRAWN';
+
 export interface Student {
   studentId: string;
   name: string;
@@ -5,6 +7,8 @@ export interface Student {
   major: string;        // เช่น อิสลามศึกษา, การศึกษาปฐมวัย, ภาษาอังกฤษ ฯลฯ
   academicYear: string; // เช่น 2569, 2568, 2567, 2566
   yearLevel: number;    // ชั้นปี 1, 2, 3, 4
+  status?: StudentStatus;
+  note?: string;
 }
 
 export type ActivityCategory = 
@@ -41,7 +45,8 @@ export interface AttendanceRecord {
   hoursEarned: number;
   dateRecorded: string;
   status: 'APPROVED' | 'PENDING' | 'REJECTED';
-  checkInType?: 'IN' | 'OUT' | 'SINGLE';
+  checkInType?: 'IN' | 'OUT' | 'SINGLE' | 'MANUAL_GRANT';
+  documentRef?: string;
   inTime?: string;
   outTime?: string;
 }

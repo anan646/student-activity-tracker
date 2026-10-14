@@ -50,8 +50,15 @@ import {
   BookOpen,
   HeartHandshake,
   Briefcase,
-  Tag
+  Tag,
+  UserPlus,
+  Upload,
+  UserCheck,
+  GraduationCap,
+  UserX,
+  FileUp
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { Student, Activity, AttendanceRecord, UserRole } from '@/types';
 import QRScannerModal from '@/components/QRScannerModal';
 import ProjectorModeModal from '@/components/ProjectorModeModal';
@@ -72,6 +79,7 @@ type MenuTab =
   | 'hours_report' 
   | 'activity_report' 
   | 'verify' 
+  | 'student_management'
   | 'create_activity' 
   | 'manage_activities' 
   | 'share_links';
@@ -176,6 +184,38 @@ export default function AdminPortal() {
   // Password / Settings Modal
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
+  // Manual Credit Granting (บันทึกชั่วโมงรายบุคคล / เทียบโอนชั่วโมง)
+  const [isManualGrantModalOpen, setIsManualGrantModalOpen] = useState(false);
+  const [manualGrantTargetStudent, setManualGrantTargetStudent] = useState<Student | null>(null);
+  const [manualGrantForm, setManualGrantForm] = useState({
+    title: '',
+    category: 'คณะ' as Activity['category'],
+    hours: 3,
+    date: '2026-10-15',
+    documentRef: '',
+    note: '',
+  });
+
+  // Student Management States (จัดการข้อมูลนักศึกษา)
+  const [studentSearchQuery, setStudentSearchQuery] = useState('');
+  const [studentMajorFilter, setStudentMajorFilter] = useState('all');
+  const [studentYearFilter, setStudentYearFilter] = useState('all');
+  const [studentStatusFilter, setStudentStatusFilter] = useState<'all' | 'ACTIVE' | 'GRADUATED' | 'WITHDRAWN'>('all');
+  const [studentStatusMap, setStudentStatusMap] = useState<Record<string, 'ACTIVE' | 'GRADUATED' | 'WITHDRAWN'>>({});
+  const [isAddStudentModalOpen, setIsAddStudentModalOpen] = useState(false);
+  const [newStudentForm, setNewStudentForm] = useState<Student>({
+    studentId: '',
+    name: '',
+    gender: 'ชาย',
+    major: 'การสอนอิสลามศึกษา',
+    academicYear: '2569',
+    yearLevel: 1,
+    status: 'ACTIVE',
+  });
+  const [isImportExcelModalOpen, setIsImportExcelModalOpen] = useState(false);
+  const [importedPreviewStudents, setImportedPreviewStudents] = useState<Student[]>([]);
+  const [deleteConfirmStudent, setDeleteConfirmStudent] = useState<Student | null>(null);
+
   // Network Status and Settings Hydration
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -265,8 +305,57 @@ export default function AdminPortal() {
           setActReportSelectedId((prev) => (prev ? prev : loaded[0].id));
         }
       }
-      if (data.students) setStudents(data.students);
-      if (data.records) setRecords(data.records);
+      if (data.students) {
+        let loadedStudents: Student[] = data.students;
+        if (typeof window !== 'undefined') {
+          try {
+            const customStr = localStorage.getItem('edupass_custom_students');
+            if (customStr) {
+              const customArr = JSON.parse(customStr);
+              if (Array.isArray(customArr)) {
+                const map = new Map<string, Student>();
+                loadedStudents.forEach((s) => map.set(s.studentId, s));
+                customArr.forEach((s) => map.set(s.studentId, s));
+                loadedStudents = Array.from(map.values());
+              }
+            }
+
+            const deletedStr = localStorage.getItem('edupass_deleted_students');
+            if (deletedStr) {
+              const deletedIds = JSON.parse(deletedStr);
+              if (Array.isArray(deletedIds)) {
+                loadedStudents = loadedStudents.filter((s) => !deletedIds.includes(s.studentId));
+              }
+            }
+
+            const statusMapStr = localStorage.getItem('edupass_student_status_map');
+            if (statusMapStr) {
+              const sMap = JSON.parse(statusMapStr);
+              setStudentStatusMap(sMap);
+            }
+          } catch (e) {}
+        }
+        setStudents(loadedStudents);
+      }
+
+      if (data.records) {
+        let loadedRecords: AttendanceRecord[] = data.records;
+        if (typeof window !== 'undefined') {
+          try {
+            const customRecsStr = localStorage.getItem('edupass_custom_records');
+            if (customRecsStr) {
+              const customRecs = JSON.parse(customRecsStr);
+              if (Array.isArray(customRecs)) {
+                const recMap = new Map<string, AttendanceRecord>();
+                loadedRecords.forEach((r) => recMap.set(r.id, r));
+                customRecs.forEach((r) => recMap.set(r.id, r));
+                loadedRecords = Array.from(recMap.values());
+              }
+            }
+          } catch (e) {}
+        }
+        setRecords(loadedRecords);
+      }
     } catch (err) {
       console.error('Failed to load initial admin data', err);
     } finally {
@@ -946,6 +1035,320 @@ export default function AdminPortal() {
     );
   };
 
+  // สรุปสถิตินักศึกษาตามสถานะ
+  const studentManagementStats = useMemo(() => {
+    let active = 0;
+    let graduated = 0;
+    let withdrawn = 0;
+
+    students.forEach((s) => {
+      const status = studentStatusMap[s.studentId] || s.status || 'ACTIVE';
+      if (status === 'ACTIVE') active++;
+      else if (status === 'GRADUATED') graduated++;
+      else if (status === 'WITHDRAWN') withdrawn++;
+    });
+
+    return {
+      total: students.length,
+      active,
+      graduated,
+      withdrawn,
+    };
+  }, [students, studentStatusMap]);
+
+  // กรองรายชื่อนักศึกษาในแท็บจัดการนักศึกษา
+  const filteredManagementStudents = useMemo(() => {
+    return students.filter((s) => {
+      const status = studentStatusMap[s.studentId] || s.status || 'ACTIVE';
+      if (studentStatusFilter !== 'all' && status !== studentStatusFilter) return false;
+      if (studentMajorFilter !== 'all' && s.major !== studentMajorFilter) return false;
+      if (studentYearFilter !== 'all' && String(s.yearLevel) !== studentYearFilter) return false;
+      if (studentSearchQuery.trim()) {
+        const q = studentSearchQuery.toLowerCase();
+        return s.studentId.includes(q) || s.name.toLowerCase().includes(q) || s.major.toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [students, studentStatusMap, studentStatusFilter, studentMajorFilter, studentYearFilter, studentSearchQuery]);
+
+  // บันทึกกิจกรรมย้อนหลัง / เทียบโอนชั่วโมงรายบุคคล (Manual Credit Granting)
+  const handleManualGrantCredit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualGrantTargetStudent || !manualGrantForm.title.trim()) return;
+
+    setLoading(true);
+    try {
+      const grantRecord: AttendanceRecord = {
+        id: `GRANT-${Date.now()}`,
+        studentId: manualGrantTargetStudent.studentId,
+        activityId: `ACT-GRANT-${Date.now().toString().slice(-4)}`,
+        activityTitle: manualGrantForm.title.trim(),
+        category: manualGrantForm.category,
+        hoursEarned: Number(manualGrantForm.hours),
+        dateRecorded: manualGrantForm.date || new Date().toLocaleString('th-TH'),
+        status: 'APPROVED',
+        checkInType: 'MANUAL_GRANT',
+        documentRef: manualGrantForm.documentRef.trim() || undefined,
+      };
+
+      setRecords((prev) => [grantRecord, ...prev]);
+
+      if (typeof window !== 'undefined') {
+        try {
+          const prevCustom: AttendanceRecord[] = JSON.parse(localStorage.getItem('edupass_custom_records') || '[]');
+          prevCustom.unshift(grantRecord);
+          localStorage.setItem('edupass_custom_records', JSON.stringify(prevCustom));
+        } catch (e) {}
+      }
+
+      fetch('/api/activities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'record_attendance',
+          studentIds: [manualGrantTargetStudent.studentId],
+          activity: {
+            id: grantRecord.activityId,
+            title: grantRecord.activityTitle,
+            category: grantRecord.category,
+            hours: grantRecord.hoursEarned,
+          },
+          checkInType: 'MANUAL_GRANT',
+          documentRef: grantRecord.documentRef,
+        }),
+      }).catch((e) => console.warn('Manual grant sync note:', e));
+
+      if (verifiedStudentResult && verifiedStudentResult.student.studentId === manualGrantTargetStudent.studentId) {
+        setVerifiedStudentResult((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            records: [grantRecord, ...prev.records],
+            totalHours: prev.totalHours + grantRecord.hoursEarned,
+          };
+        });
+      }
+
+      playSuccessBeep();
+      setMessage({
+        text: `✅ บันทึกชั่วโมงเทียบโอน "${grantRecord.activityTitle}" (+${grantRecord.hoursEarned} ชม.) ให้ ${manualGrantTargetStudent.name} สำเร็จ!`,
+        type: 'success',
+      });
+
+      setIsManualGrantModalOpen(false);
+      setManualGrantForm({
+        title: '',
+        category: 'คณะ',
+        hours: 3,
+        date: new Date().toISOString().split('T')[0],
+        documentRef: '',
+        note: '',
+      });
+    } catch (err) {
+      console.error(err);
+      playWarningBeep();
+      setMessage({ text: 'เกิดข้อผิดพลาดในการบันทึกชั่วโมงรายบุคคล', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // เพิ่มนักศึกษารายคน
+  const handleAddSingleStudent = (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanId = newStudentForm.studentId.trim();
+    if (!cleanId) return;
+
+    if (students.some((s) => s.studentId === cleanId)) {
+      playWarningBeep();
+      setMessage({ text: `⚠️ มีรหัสนักศึกษา ${cleanId} ในระบบแล้ว`, type: 'error' });
+      return;
+    }
+
+    const st: Student = {
+      ...newStudentForm,
+      studentId: cleanId,
+      name: newStudentForm.name.trim(),
+      status: 'ACTIVE',
+    };
+
+    setStudents((prev) => [st, ...prev]);
+
+    if (typeof window !== 'undefined') {
+      try {
+        const customArr: Student[] = JSON.parse(localStorage.getItem('edupass_custom_students') || '[]');
+        customArr.unshift(st);
+        localStorage.setItem('edupass_custom_students', JSON.stringify(customArr));
+      } catch (e) {}
+    }
+
+    playSuccessBeep();
+    setMessage({ text: `🎉 เพิ่มนักศึกษาใหม่ "${st.name}" (${st.studentId}) สำเร็จแล้ว!`, type: 'success' });
+    setIsAddStudentModalOpen(false);
+    setNewStudentForm({
+      studentId: '',
+      name: '',
+      gender: 'ชาย',
+      major: allMajors[0] || 'การสอนอิสลามศึกษา',
+      academicYear: '2569',
+      yearLevel: 1,
+      status: 'ACTIVE',
+    });
+  };
+
+  // ลบข้อมูลนักศึกษาออกจากระบบ
+  const handleDeleteStudent = (st: Student) => {
+    setStudents((prev) => prev.filter((s) => s.studentId !== st.studentId));
+
+    if (typeof window !== 'undefined') {
+      try {
+        const deletedIds: string[] = JSON.parse(localStorage.getItem('edupass_deleted_students') || '[]');
+        if (!deletedIds.includes(st.studentId)) {
+          deletedIds.push(st.studentId);
+          localStorage.setItem('edupass_deleted_students', JSON.stringify(deletedIds));
+        }
+
+        const customArr: Student[] = JSON.parse(localStorage.getItem('edupass_custom_students') || '[]');
+        const updatedCustom = customArr.filter((s) => s.studentId !== st.studentId);
+        localStorage.setItem('edupass_custom_students', JSON.stringify(updatedCustom));
+      } catch (e) {}
+    }
+
+    setDeleteConfirmStudent(null);
+    playSuccessBeep();
+    setMessage({ text: `🗑️ ลบข้อมูลนักศึกษา ${st.name} (${st.studentId}) เรียบร้อยแล้ว`, type: 'success' });
+  };
+
+  // เปลี่ยนสถานะนักศึกษา (กำลังศึกษา / จบการศึกษา / พ้นสภาพ)
+  const handleChangeStudentStatus = (studentId: string, newStatus: 'ACTIVE' | 'GRADUATED' | 'WITHDRAWN') => {
+    const updatedMap = { ...studentStatusMap, [studentId]: newStatus };
+    setStudentStatusMap(updatedMap);
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('edupass_student_status_map', JSON.stringify(updatedMap));
+      } catch (e) {}
+    }
+    const statusText = newStatus === 'ACTIVE' ? 'กำลังศึกษา' : newStatus === 'GRADUATED' ? 'สำเร็จการศึกษาแล้ว' : 'พ้นสภาพ';
+    setMessage({ text: `ปรับสถานะรหัส ${studentId} เป็น "${statusText}" เรียบร้อยแล้ว`, type: 'success' });
+  };
+
+  // อัปโหลดไฟล์ Excel / CSV เพื่อนำเข้านักศึกษา
+  const handleFileUploadForImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const rawJson: any[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+        const parsedList: Student[] = [];
+        rawJson.forEach((row) => {
+          const sId = String(
+            row['รหัสนักศึกษา'] || row['รหัส นศ'] || row['รหัส'] || row['StudentID'] || row['studentId'] || row['id'] || ''
+          ).trim();
+          if (!sId) return;
+
+          const name = String(
+            row['ชื่อ-นามสกุล'] || row['ชื่อ สกุล'] || row['ชื่อ-สกุล'] || row['ชื่อสกุล'] || row['Name'] || row['name'] || ''
+          ).trim() || `นักศึกษารหัส ${sId}`;
+
+          const rawGender = String(row['เพศ'] || row['Gender'] || row['gender'] || '').trim();
+          const gender = rawGender.includes('หญิง') || rawGender === 'F' ? 'หญิง' : 'ชาย';
+
+          const major = String(row['สาขาวิชา'] || row['สาขา'] || row['Major'] || row['major'] || 'การสอนอิสลามศึกษา').trim();
+          const academicYear = String(row['ปีที่เข้า'] || row['ปีการศึกษา'] || row['AcademicYear'] || '2569').trim();
+          const yearLevel = Number(row['ชั้นปี'] || row['ปี'] || row['YearLevel'] || 1);
+
+          parsedList.push({
+            studentId: sId,
+            name,
+            gender,
+            major,
+            academicYear,
+            yearLevel,
+            status: 'ACTIVE',
+          });
+        });
+
+        if (parsedList.length === 0) {
+          playWarningBeep();
+          setMessage({ text: '⚠️ ไม่พบข้อมูลนักศึกษาในไฟล์ กรุณาตรวจสอบหัวตาราง (เช่น รหัสนักศึกษา, ชื่อ-นามสกุล)', type: 'error' });
+          return;
+        }
+
+        setImportedPreviewStudents(parsedList);
+      } catch (err) {
+        console.error('Error reading excel:', err);
+        playWarningBeep();
+        setMessage({ text: 'เกิดข้อผิดพลาดในการอ่านไฟล์ Excel/CSV', type: 'error' });
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // ยืนยันการนำเข้านักศึกษา
+  const handleConfirmImport = () => {
+    if (importedPreviewStudents.length === 0) return;
+
+    const existingMap = new Map<string, Student>();
+    students.forEach((s) => existingMap.set(s.studentId, s));
+    importedPreviewStudents.forEach((s) => existingMap.set(s.studentId, s));
+
+    const updatedStudents = Array.from(existingMap.values());
+    setStudents(updatedStudents);
+
+    if (typeof window !== 'undefined') {
+      try {
+        const customArr: Student[] = JSON.parse(localStorage.getItem('edupass_custom_students') || '[]');
+        const customMap = new Map<string, Student>();
+        customArr.forEach((s) => customMap.set(s.studentId, s));
+        importedPreviewStudents.forEach((s) => customMap.set(s.studentId, s));
+        localStorage.setItem('edupass_custom_students', JSON.stringify(Array.from(customMap.values())));
+      } catch (e) {}
+    }
+
+    playSuccessBeep();
+    setMessage({
+      text: `🎉 นำเข้านักศึกษาใหม่เรียบร้อยแล้ว ${importedPreviewStudents.length} คน!`,
+      type: 'success',
+    });
+
+    setIsImportExcelModalOpen(false);
+    setImportedPreviewStudents([]);
+  };
+
+  // ดาวน์โหลดไฟล์ตัวอย่าง Excel สำหรับกรอกข้อมูล นศ.
+  const handleDownloadSampleExcel = () => {
+    const sampleData = [
+      {
+        'รหัสนักศึกษา': '691441091',
+        'ชื่อ-นามสกุล': 'นายมูฮัมหมัด ซาการียา',
+        'เพศ': 'ชาย',
+        'สาขาวิชา': 'การสอนอิสลามศึกษา',
+        'ปีที่เข้า': '2569',
+        'ชั้นปี': 1,
+      },
+      {
+        'รหัสนักศึกษา': '691442092',
+        'ชื่อ-นามสกุล': 'นางสาวฟาตีมะห์ ดอเลาะ',
+        'เพศ': 'หญิง',
+        'สาขาวิชา': 'การศึกษาปฐมวัย',
+        'ปีที่เข้า': '2569',
+        'ชั้นปี': 1,
+      },
+    ];
+
+    const ws = XLSX.utils.json_to_sheet(sampleData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students_Template');
+    XLSX.writeFile(wb, 'edupass_students_template.xlsx');
+  };
+
   // หน้า Login PIN ก่อนเข้าสู่ระบบแอดมิน
   if (!isAuthenticated) {
     return (
@@ -1206,6 +1609,21 @@ export default function AdminPortal() {
 
                   <button
                     onClick={() => {
+                      setActiveTab('student_management');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'student_management'
+                        ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <UserCheck className="w-4 h-4 shrink-0" />
+                    <span>จัดการข้อมูลนักศึกษา</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
                       setActiveTab('share_links');
                       setIsMobileMenuOpen(false);
                     }}
@@ -1460,7 +1878,7 @@ export default function AdminPortal() {
 
         <div className="p-6 md:p-10 max-w-7xl w-full mx-auto">
           {/* Staff Access Restriction Guard: ป้องกันไม่ให้ Staff เข้าถึงเมนูที่สงวนไว้สำหรับ Super Admin */}
-          {userRole === 'staff' && (activeTab === 'hours_report' || activeTab === 'activity_report' || activeTab === 'create_activity' || activeTab === 'manage_activities' || activeTab === 'share_links') && (
+          {userRole === 'staff' && (activeTab === 'hours_report' || activeTab === 'activity_report' || activeTab === 'create_activity' || activeTab === 'manage_activities' || activeTab === 'share_links' || activeTab === 'student_management') && (
             <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-lg mx-auto my-8 border border-slate-200 shadow-sm animate-in zoom-in-95">
               <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200">
                 <Lock className="w-8 h-8" />
@@ -2793,9 +3211,23 @@ export default function AdminPortal() {
                         </p>
                       </div>
 
-                      <div className="text-right">
-                        <span className="text-xs font-bold text-slate-400 block">ชั่วโมงสะสมรวม</span>
-                        <span className="text-2xl font-black text-[#0070f3]">{verifiedStudentResult.totalHours} ชม.</span>
+                      <div className="text-right flex flex-col sm:items-end gap-2">
+                        <div>
+                          <span className="text-xs font-bold text-slate-400 block">ชั่วโมงสะสมรวม</span>
+                          <span className="text-2xl font-black text-[#0070f3]">{verifiedStudentResult.totalHours} ชม.</span>
+                        </div>
+                        {userRole === 'superadmin' && (
+                          <button
+                            onClick={() => {
+                              setManualGrantTargetStudent(verifiedStudentResult.student);
+                              setIsManualGrantModalOpen(true);
+                            }}
+                            className="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white font-bold rounded-xl text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                            <span>+ บันทึกชั่วโมงรายบุคคล / เทียบโอน</span>
+                          </button>
+                        )}
                       </div>
                     </div>
 
@@ -2814,8 +3246,18 @@ export default function AdminPortal() {
                               className="p-3 rounded-xl bg-white border border-slate-200 flex justify-between items-center text-xs"
                             >
                               <div>
-                                <span className="font-bold text-slate-900 block">{r.activityTitle}</span>
-                                <span className="text-slate-400 text-[11px]">{r.dateRecorded} • {r.category}</span>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-bold text-slate-900">{r.activityTitle}</span>
+                                  {r.checkInType === 'MANUAL_GRANT' && (
+                                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                                      เทียบโอนพิเศษ
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-slate-400 text-[11px]">
+                                  {r.dateRecorded} • {r.category}
+                                  {r.documentRef ? ` • เลขที่: ${r.documentRef}` : ''}
+                                </span>
                               </div>
                               <span className="font-bold text-[#0070f3]">+{r.hoursEarned} ชม.</span>
                             </div>
@@ -2825,6 +3267,259 @@ export default function AdminPortal() {
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB: จัดการข้อมูลนักศึกษา (เฉพาะ Super Admin) */}
+          {activeTab === 'student_management' && userRole === 'superadmin' && (
+            <div className="space-y-6">
+              {/* Header Card & Actions */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
+                      <UserCheck className="w-6 h-6 text-[#0070f3]" />
+                      <span>จัดการข้อมูลนักศึกษา (Student Management)</span>
+                    </h2>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      จัดการรายชื่อนักศึกษา นำเข้าข้อมูลด้วยไฟล์ Excel เพิ่มนักศึกษารายคน ปรับสถานะ และบันทึกเทียบโอนชั่วโมง
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                    <button
+                      onClick={() => setIsAddStudentModalOpen(true)}
+                      className="flex-1 sm:flex-initial px-4 py-2.5 bg-[#0070f3] hover:bg-[#0060df] text-white font-bold rounded-xl text-xs transition shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <UserPlus className="w-4 h-4" />
+                      <span>+ เพิ่มนักศึกษารายคน</span>
+                    </button>
+                    <button
+                      onClick={() => setIsImportExcelModalOpen(true)}
+                      className="flex-1 sm:flex-initial px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                    >
+                      <FileUp className="w-4 h-4" />
+                      <span>📥 นำเข้าไฟล์ Excel/CSV</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4 KPI Metrics Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+                    <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      นักศึกษาทั้งหมดในระบบ
+                    </span>
+                    <div className="text-2xl font-black text-slate-900">{studentManagementStats.total} <span className="text-xs font-normal text-slate-400">คน</span></div>
+                    <p className="text-[10px] text-slate-400 mt-0.5">คณะศึกษาศาสตร์ 5 สาขาวิชา</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200">
+                    <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block mb-1">
+                      กำลังศึกษา (Active)
+                    </span>
+                    <div className="text-2xl font-black text-emerald-700">
+                      {studentManagementStats.active}{' '}
+                      <span className="text-xs font-normal text-slate-500">
+                        ({studentManagementStats.total ? Math.round((studentManagementStats.active / studentManagementStats.total) * 100) : 0}%)
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-emerald-600 mt-0.5">แสดงผลในระบบเช็คอินและรายงานปกติ</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200">
+                    <span className="text-[11px] font-bold text-blue-800 uppercase tracking-wider block mb-1">
+                      สำเร็จการศึกษา (Graduated)
+                    </span>
+                    <div className="text-2xl font-black text-[#0070f3]">{studentManagementStats.graduated} <span className="text-xs font-normal text-slate-500">คน</span></div>
+                    <p className="text-[10px] text-blue-600 mt-0.5">ผ่านเกณฑ์และจบหลักสูตรแล้ว</p>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200">
+                    <span className="text-[11px] font-bold text-rose-800 uppercase tracking-wider block mb-1">
+                      พ้นสภาพ / ลาออก (Withdrawn)
+                    </span>
+                    <div className="text-2xl font-black text-rose-600">{studentManagementStats.withdrawn} <span className="text-xs font-normal text-slate-500">คน</span></div>
+                    <p className="text-[10px] text-rose-600 mt-0.5">ไม่นำมาคำนวณในกลุ่มเสี่ยง</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table Container */}
+              <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm space-y-6">
+                {/* Multi-Filters Bar */}
+                <div className="flex flex-wrap items-center gap-2.5 p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
+                  <span className="font-bold text-slate-500 flex items-center gap-1">
+                    <Filter className="w-3.5 h-3.5" />
+                    <span>กรองข้อมูล:</span>
+                  </span>
+
+                  {/* Status Filter */}
+                  <select
+                    value={studentStatusFilter}
+                    onChange={(e) => setStudentStatusFilter(e.target.value as any)}
+                    className="px-3 py-1.5 bg-white rounded-xl border border-slate-200 font-bold text-slate-700"
+                  >
+                    <option value="all">สถานะทั้งหมด</option>
+                    <option value="ACTIVE">🟢 กำลังศึกษา (Active)</option>
+                    <option value="GRADUATED">🟡 สำเร็จการศึกษา (Graduated)</option>
+                    <option value="WITHDRAWN">🔴 พ้นสภาพ/ลาออก (Withdrawn)</option>
+                  </select>
+
+                  {/* Year Filter */}
+                  <select
+                    value={studentYearFilter}
+                    onChange={(e) => setStudentYearFilter(e.target.value)}
+                    className="px-3 py-1.5 bg-white rounded-xl border border-slate-200 font-bold text-slate-700"
+                  >
+                    <option value="all">ทุกชั้นปี (ปี 1-4)</option>
+                    <option value="1">ชั้นปีที่ 1 (รหัส 69)</option>
+                    <option value="2">ชั้นปีที่ 2 (รหัส 68)</option>
+                    <option value="3">ชั้นปีที่ 3 (รหัส 67)</option>
+                    <option value="4">ชั้นปีที่ 4 (รหัส 66)</option>
+                  </select>
+
+                  {/* Major Filter */}
+                  <select
+                    value={studentMajorFilter}
+                    onChange={(e) => setStudentMajorFilter(e.target.value)}
+                    className="px-3 py-1.5 bg-white rounded-xl border border-slate-200 font-bold text-slate-700 max-w-[200px]"
+                  >
+                    <option value="all">ทุกสาขาวิชา ({allMajors.length} สาขา)</option>
+                    {allMajors.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Clear filter */}
+                  {(studentStatusFilter !== 'all' || studentMajorFilter !== 'all' || studentYearFilter !== 'all' || studentSearchQuery) && (
+                    <button
+                      onClick={() => {
+                        setStudentStatusFilter('all');
+                        setStudentMajorFilter('all');
+                        setStudentYearFilter('all');
+                        setStudentSearchQuery('');
+                      }}
+                      className="px-2.5 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold cursor-pointer transition text-[11px]"
+                    >
+                      ล้างตัวกรอง
+                    </button>
+                  )}
+
+                  {/* Search query */}
+                  <div className="relative flex-1 sm:w-56 ml-auto">
+                    <input
+                      type="text"
+                      value={studentSearchQuery}
+                      onChange={(e) => setStudentSearchQuery(e.target.value)}
+                      placeholder="ค้นหาชื่อ หรือรหัส นศ...."
+                      className="w-full px-3.5 py-1.5 bg-white rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-[#0070f3]"
+                    />
+                  </div>
+                </div>
+
+                {/* Students Table */}
+                <div className="overflow-x-auto max-h-[550px]">
+                  <table className="w-full text-left text-xs text-slate-600">
+                    <thead className="bg-slate-50 font-bold text-slate-500 uppercase sticky top-0 border-b border-slate-100 z-10">
+                      <tr>
+                        <th className="py-3 px-4 text-center">ลำดับ</th>
+                        <th className="py-3 px-4">รหัสนักศึกษา</th>
+                        <th className="py-3 px-4">ชื่อ-นามสกุล</th>
+                        <th className="py-3 px-4 text-center">เพศ</th>
+                        <th className="py-3 px-4">สาขาวิชา</th>
+                        <th className="py-3 px-4 text-center">ชั้นปี</th>
+                        <th className="py-3 px-4 text-center">ชั่วโมงสะสม</th>
+                        <th className="py-3 px-4 text-center">สถานะ</th>
+                        <th className="py-3 px-4 text-center">การจัดการ</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredManagementStudents.length === 0 ? (
+                        <tr>
+                          <td colSpan={9} className="py-12 text-center text-slate-400">
+                            ไม่พบข้อมูลนักศึกษาตามเงื่อนไขตัวกรอง
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredManagementStudents.map((st, idx) => {
+                          const hrs = studentTotalHoursMap.get(st.studentId) || 0;
+                          const currentStatus = studentStatusMap[st.studentId] || st.status || 'ACTIVE';
+
+                          return (
+                            <tr key={st.studentId} className="hover:bg-slate-50/70 transition-colors">
+                              <td className="py-3 px-4 text-center font-mono text-slate-400">{idx + 1}</td>
+                              <td className="py-3 px-4 font-mono font-bold text-slate-900">{st.studentId}</td>
+                              <td className="py-3 px-4 font-bold text-slate-800">{st.name}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span
+                                  className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                    st.gender === 'ชาย'
+                                      ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                      : 'bg-pink-50 text-pink-700 border border-pink-200'
+                                  }`}
+                                >
+                                  {st.gender}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-slate-700">{st.major}</td>
+                              <td className="py-3 px-4 text-center">ปี {st.yearLevel}</td>
+                              <td className="py-3 px-4 text-center">
+                                <span className="font-bold text-[#0070f3]">{hrs} ชม.</span>
+                                {hrs >= requiredHours && (
+                                  <span className="block text-[10px] font-bold text-emerald-600">✓ ครบเกณฑ์</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <select
+                                  value={currentStatus}
+                                  onChange={(e) => handleChangeStudentStatus(st.studentId, e.target.value as any)}
+                                  className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition cursor-pointer ${
+                                    currentStatus === 'ACTIVE'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : currentStatus === 'GRADUATED'
+                                      ? 'bg-blue-50 text-[#0070f3] border-blue-200'
+                                      : 'bg-rose-50 text-rose-700 border-rose-200'
+                                  }`}
+                                >
+                                  <option value="ACTIVE">🟢 กำลังศึกษา</option>
+                                  <option value="GRADUATED">🟡 จบการศึกษา</option>
+                                  <option value="WITHDRAWN">🔴 พ้นสภาพ/ลาออก</option>
+                                </select>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <button
+                                    onClick={() => {
+                                      setManualGrantTargetStudent(st);
+                                      setIsManualGrantModalOpen(true);
+                                    }}
+                                    className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-lg font-bold text-[11px] transition cursor-pointer flex items-center gap-1"
+                                    title="เทียบโอนหรือเพิ่มชั่วโมงให้นักศึกษาคนนี้"
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                    <span>เพิ่ม ชม.</span>
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteConfirmStudent(st)}
+                                    className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg font-bold text-[11px] transition cursor-pointer flex items-center gap-1"
+                                    title="ลบนักศึกษาออกจากระบบ"
+                                  >
+                                    <Trash2 className="w-3 h-3 text-rose-500" />
+                                    <span>ลบ</span>
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -3494,6 +4189,521 @@ export default function AdminPortal() {
                 className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition shadow-sm cursor-pointer"
               >
                 ยืนยันการลบกิจกรรม
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1. Modal บันทึกกิจกรรมย้อนหลัง / เทียบโอนชั่วโมงรายบุคคล (Manual Credit Granting) */}
+      {isManualGrantModalOpen && manualGrantTargetStudent && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0070f3] flex items-center justify-center shadow-xs">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-lg leading-tight">บันทึกเทียบโอนชั่วโมงรายบุคคล</h3>
+                  <p className="text-xs text-slate-400 font-medium">Manual Credit Granting</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsManualGrantModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Target Student Info Card */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-50/60 to-indigo-50/60 border border-blue-100 text-xs flex items-center gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-[#0070f3] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                {manualGrantTargetStudent.name.charAt(0)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="font-bold text-slate-900 text-sm truncate">{manualGrantTargetStudent.name}</div>
+                <div className="text-slate-500 flex flex-wrap items-center gap-2 text-[11px] mt-0.5">
+                  <span className="font-mono font-bold text-[#0070f3]">{manualGrantTargetStudent.studentId}</span>
+                  <span>•</span>
+                  <span>{manualGrantTargetStudent.major}</span>
+                  <span>•</span>
+                  <span>ชั้นปีที่ {manualGrantTargetStudent.yearLevel}</span>
+                </div>
+              </div>
+            </div>
+
+            <form onSubmit={handleManualGrantCredit} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  ชื่อกิจกรรม / ผลงานที่ขอเทียบโอน <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น รางวัลแข่งขันตอบปัญหาวิชาการระดับชาติ, วิทยากรค่ายคุณธรรม"
+                  value={manualGrantForm.title}
+                  onChange={(e) => setManualGrantForm((prev) => ({ ...prev, title: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-medium text-slate-900 focus:outline-none focus:border-[#0070f3] focus:bg-white transition"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">หมวดหมู่กิจกรรม</label>
+                  <select
+                    value={manualGrantForm.category}
+                    onChange={(e) => setManualGrantForm((prev) => ({ ...prev, category: e.target.value as any }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-[#0070f3] focus:bg-white transition cursor-pointer"
+                  >
+                    <option value="คณะ">คณะ</option>
+                    <option value="สาขาวิชา">สาขาวิชา</option>
+                    <option value="สโมสรนักศึกษา">สโมสรนักศึกษา</option>
+                    <option value="จิตอาสา/บำเพ็ญประโยชน์">จิตอาสา/บำเพ็ญประโยชน์</option>
+                    <option value="เสริมทักษะวิชาชีพ">เสริมทักษะวิชาชีพ</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    จำนวนชั่วโมง <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    max="100"
+                    required
+                    value={manualGrantForm.hours}
+                    onChange={(e) => setManualGrantForm((prev) => ({ ...prev, hours: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-900 focus:outline-none focus:border-[#0070f3] focus:bg-white transition"
+                  />
+                  {/* Preset Quick Buttons */}
+                  <div className="flex gap-1 mt-1.5">
+                    {[1, 2, 3, 5, 8, 10].map((h) => (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => setManualGrantForm((prev) => ({ ...prev, hours: h }))}
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                          manualGrantForm.hours === h
+                            ? 'bg-[#0070f3] text-white'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        +{h}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">วันที่ทำกิจกรรม / อนุมัติ</label>
+                  <input
+                    type="date"
+                    required
+                    value={manualGrantForm.date}
+                    onChange={(e) => setManualGrantForm((prev) => ({ ...prev, date: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-medium text-slate-900 focus:outline-none focus:border-[#0070f3] focus:bg-white transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">เลขที่หนังสืออ้างอิง / คำสั่ง</label>
+                  <input
+                    type="text"
+                    placeholder="เช่น ศษ. 024/2569"
+                    value={manualGrantForm.documentRef}
+                    onChange={(e) => setManualGrantForm((prev) => ({ ...prev, documentRef: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-mono text-slate-900 focus:outline-none focus:border-[#0070f3] focus:bg-white transition"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">หมายเหตุเพิ่มเติม</label>
+                <textarea
+                  rows={2}
+                  placeholder="ระบุเหตุผลหรือรายละเอียดการเทียบโอนชั่วโมง..."
+                  value={manualGrantForm.note}
+                  onChange={(e) => setManualGrantForm((prev) => ({ ...prev, note: e.target.value }))}
+                  className="w-full px-3.5 py-2 bg-slate-50 rounded-xl border border-slate-200 font-medium text-slate-900 focus:outline-none focus:border-[#0070f3] focus:bg-white transition resize-none"
+                />
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsManualGrantModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 py-3 rounded-xl bg-[#0070f3] hover:bg-[#0060df] text-white font-bold text-xs transition shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  <Award className="w-4 h-4" />
+                  <span>{loading ? 'กำลังบันทึก...' : 'บันทึกเทียบโอนชั่วโมง'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Modal เพิ่มนักศึกษารายคน (+ Add Student) */}
+      {isAddStudentModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#0070f3] flex items-center justify-center shadow-xs">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-lg leading-tight">เพิ่มข้อมูลนักศึกษารายคน</h3>
+                  <p className="text-xs text-slate-400 font-medium">Add Individual Student</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddStudentModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleAddSingleStudent} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">
+                    รหัสนักศึกษา <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="เช่น 691441091"
+                    value={newStudentForm.studentId}
+                    onChange={(e) => setNewStudentForm((prev) => ({ ...prev, studentId: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-mono font-bold text-slate-900 focus:outline-none focus:border-[#0070f3] focus:bg-white transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">เพศ</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setNewStudentForm((prev) => ({ ...prev, gender: 'ชาย' }))}
+                      className={`py-2.5 px-3 rounded-xl font-bold transition text-xs border ${
+                        newStudentForm.gender === 'ชาย'
+                          ? 'bg-blue-50 border-[#0070f3] text-[#0070f3]'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      👨 ชาย
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewStudentForm((prev) => ({ ...prev, gender: 'หญิง' }))}
+                      className={`py-2.5 px-3 rounded-xl font-bold transition text-xs border ${
+                        newStudentForm.gender === 'หญิง'
+                          ? 'bg-pink-50 border-pink-500 text-pink-600'
+                          : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      👩 หญิง
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">
+                  ชื่อ - นามสกุล <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="เช่น นายมูฮัมหมัด ซาการียา หรือ นางสาวฟาตีมะห์ ดอเลาะ"
+                  value={newStudentForm.name}
+                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, name: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-medium text-slate-900 focus:outline-none focus:border-[#0070f3] focus:bg-white transition"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">สาขาวิชา</label>
+                <select
+                  value={newStudentForm.major}
+                  onChange={(e) => setNewStudentForm((prev) => ({ ...prev, major: e.target.value }))}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-[#0070f3] focus:bg-white transition cursor-pointer"
+                >
+                  {allMajors.length > 0 ? (
+                    allMajors.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="การสอนอิสลามศึกษา">การสอนอิสลามศึกษา</option>
+                      <option value="การศึกษาปฐมวัย">การศึกษาปฐมวัย</option>
+                      <option value="การประถมศึกษา">การประถมศึกษา</option>
+                      <option value="การสอนภาษาอังกฤษ">การสอนภาษาอังกฤษ</option>
+                      <option value="การสอนภาษาไทย">การสอนภาษาไทย</option>
+                      <option value="นวัตกรรมและเทคโนโลยีการศึกษา">นวัตกรรมและเทคโนโลยีการศึกษา</option>
+                      <option value="การสอนศิลปะ">การสอนศิลปะ</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ปีการศึกษาที่เข้า</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="2569"
+                    value={newStudentForm.academicYear}
+                    onChange={(e) => setNewStudentForm((prev) => ({ ...prev, academicYear: e.target.value }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-mono text-slate-900 focus:outline-none focus:border-[#0070f3] focus:bg-white transition"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">ชั้นปีปัจจุบัน</label>
+                  <select
+                    value={newStudentForm.yearLevel}
+                    onChange={(e) => setNewStudentForm((prev) => ({ ...prev, yearLevel: Number(e.target.value) }))}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 rounded-xl border border-slate-200 font-bold text-slate-800 focus:outline-none focus:border-[#0070f3] focus:bg-white transition cursor-pointer"
+                  >
+                    {[1, 2, 3, 4, 5].map((y) => (
+                      <option key={y} value={y}>
+                        ชั้นปีที่ {y}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddStudentModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+                >
+                  ยกเลิก
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-xl bg-[#0070f3] hover:bg-[#0060df] text-white font-bold text-xs transition shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>บันทึกข้อมูลนักศึกษา</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Modal นำเข้าข้อมูลนักศึกษาผ่านไฟล์ Excel / CSV (Bulk Import Excel) */}
+      {isImportExcelModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shadow-xs">
+                  <FileSpreadsheet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-900 text-lg leading-tight">นำเข้านักศึกษาผ่าน Excel / CSV</h3>
+                  <p className="text-xs text-slate-400 font-medium">Bulk Import Students from Spreadsheet</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportExcelModalOpen(false);
+                  setImportedPreviewStudents([]);
+                }}
+                className="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center font-bold text-sm cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Template Download Prompt */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div>
+                <div className="font-bold text-slate-800">ยังไม่มีแบบฟอร์มนำเข้าใช่หรือไม่?</div>
+                <div className="text-slate-500 text-[11px] mt-0.5">
+                  ดาวน์โหลดไฟล์เทมเพลต Excel (.xlsx) ที่มีหัวตารางพร้อมตัวอย่างเพื่อนำไปกรอกข้อมูล
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleDownloadSampleExcel}
+                className="px-3.5 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 rounded-xl font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0 shadow-xs"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-600" />
+                <span>ดาวน์โหลดเทมเพลต</span>
+              </button>
+            </div>
+
+            {/* File Upload Drop Area */}
+            {importedPreviewStudents.length === 0 ? (
+              <label className="border-2 border-dashed border-slate-300 hover:border-[#0070f3] rounded-2xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition bg-slate-50/50 hover:bg-blue-50/30">
+                <div className="w-12 h-12 rounded-2xl bg-blue-50 text-[#0070f3] flex items-center justify-center mb-3">
+                  <Upload className="w-6 h-6" />
+                </div>
+                <div className="font-bold text-slate-800 text-sm">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</div>
+                <div className="text-xs text-slate-500 mt-1">
+                  รองรับไฟล์ Microsoft Excel (.xlsx, .xls) หรือ CSV (.csv)
+                </div>
+                <input
+                  type="file"
+                  accept=".xlsx, .xls, .csv"
+                  onChange={handleFileUploadForImport}
+                  className="hidden"
+                />
+              </label>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-200">
+                      ✓ ตรวจพบข้อมูล {importedPreviewStudents.length} รายการ
+                    </span>
+                    <span className="text-xs text-slate-400">พร้อมนำเข้าสู่ระบบ</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setImportedPreviewStudents([])}
+                    className="text-xs text-rose-600 hover:underline font-bold cursor-pointer"
+                  >
+                    ล้างข้อมูล / เลือกไฟล์ใหม่
+                  </button>
+                </div>
+
+                {/* Preview Table */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100 text-slate-700 font-bold sticky top-0">
+                      <tr>
+                        <th className="p-2.5">รหัสนักศึกษา</th>
+                        <th className="p-2.5">ชื่อ-นามสกุล</th>
+                        <th className="p-2.5">เพศ</th>
+                        <th className="p-2.5">สาขาวิชา</th>
+                        <th className="p-2.5 text-center">ชั้นปี</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                      {importedPreviewStudents.slice(0, 10).map((st, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50">
+                          <td className="p-2.5 font-mono font-bold text-[#0070f3]">{st.studentId}</td>
+                          <td className="p-2.5">{st.name}</td>
+                          <td className="p-2.5">
+                            <span className={st.gender === 'ชาย' ? 'text-blue-600' : 'text-pink-600'}>
+                              {st.gender}
+                            </span>
+                          </td>
+                          <td className="p-2.5">{st.major}</td>
+                          <td className="p-2.5 text-center font-bold">{st.yearLevel}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {importedPreviewStudents.length > 10 && (
+                  <p className="text-[11px] text-slate-400 text-center">
+                    ... และอีก {importedPreviewStudents.length - 10} รายการ
+                  </p>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsImportExcelModalOpen(false);
+                  setImportedPreviewStudents([]);
+                }}
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                disabled={importedPreviewStudents.length === 0}
+                onClick={handleConfirmImport}
+                className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-sm cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+              >
+                <FileUp className="w-4 h-4" />
+                <span>ยืนยันนำเข้าข้อมูล ({importedPreviewStudents.length} คน)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Modal ยืนยันการลบนักศึกษา (Delete Student Confirmation) */}
+      {deleteConfirmStudent && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-slate-100 animate-in zoom-in-95 space-y-5">
+            <div className="w-14 h-14 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto border border-rose-100">
+              <UserX className="w-7 h-7" />
+            </div>
+
+            <div className="text-center">
+              <h3 className="font-black text-slate-900 text-lg">ยืนยันการลบนักศึกษา</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลนักศึกษาคนนี้ออกจากระบบ?
+              </p>
+            </div>
+
+            {/* Student Info Card */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-1.5">
+              <div className="font-bold text-slate-900 text-sm">{deleteConfirmStudent.name}</div>
+              <div className="flex flex-wrap items-center gap-2 text-slate-500 text-[11px]">
+                <span className="font-mono font-bold text-[#0070f3]">{deleteConfirmStudent.studentId}</span>
+                <span>•</span>
+                <span>เพศ {deleteConfirmStudent.gender}</span>
+                <span>•</span>
+                <span>{deleteConfirmStudent.major}</span>
+                <span>•</span>
+                <span>ชั้นปีที่ {deleteConfirmStudent.yearLevel}</span>
+              </div>
+              <div className="text-rose-600 font-bold text-[11px] pt-1 border-t border-slate-200 mt-2">
+                ⚠️ การลบจะนำนักศึกษาออกจากระบบ และไม่แสดงในรายงานผล (สามารถเพิ่มหรือนำเข้าใหม่ได้ในอนาคต)
+              </div>
+            </div>
+
+            <div className="flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmStudent(null)}
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+              >
+                ยกเลิก
+              </button>
+              <button
+                type="button"
+                onClick={() => handleDeleteStudent(deleteConfirmStudent)}
+                className="flex-1 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition shadow-sm cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>ยืนยันการลบนักศึกษา</span>
               </button>
             </div>
           </div>
