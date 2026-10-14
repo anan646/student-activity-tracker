@@ -42,7 +42,9 @@ import {
   RotateCw,
   Filter,
   Shield,
-  PieChart
+  PieChart,
+  Trash2,
+  Crown
 } from 'lucide-react';
 import { Student, Activity, AttendanceRecord, UserRole } from '@/types';
 import QRScannerModal from '@/components/QRScannerModal';
@@ -422,6 +424,23 @@ export default function AdminPortal() {
     }
   };
 
+  // ลบประวัติการเช็คอิน (เฉพาะ Super Admin เท่านั้น)
+  const handleDeleteRecord = (recordId: string, studentId: string) => {
+    if (userRole !== 'superadmin') {
+      playWarningBeep();
+      setMessage({ text: '⚠️ เฉพาะ Super Admin เท่านั้นที่สามารถลบข้อมูลการเช็คอินได้', type: 'error' });
+      return;
+    }
+
+    if (typeof window !== 'undefined' && !window.confirm(`ยืนยันการลบประวัติการเช็คอินของรหัส ${studentId}?`)) {
+      return;
+    }
+
+    setRecords((prev) => prev.filter((r) => r.id !== recordId));
+    playSuccessBeep();
+    setMessage({ text: `ลบประวัติการเช็คอินของรหัส ${studentId} เรียบร้อยแล้ว`, type: 'success' });
+  };
+
   // เช็คชื่อทีละหลายคน (Bulk Paste)
   const handleCheckInBulk = async () => {
     if (!selectedActivity || !bulkStudentIds.trim()) return;
@@ -723,12 +742,57 @@ export default function AdminPortal() {
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#f3f4f6] flex items-center justify-center px-4 py-12">
-        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/80 border border-slate-100 p-8 max-w-sm w-full text-center animate-in zoom-in-95">
-          <div className="w-16 h-16 rounded-2xl bg-[#0070f3] text-white flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/25">
+        <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/80 border border-slate-100 p-6 sm:p-8 max-w-md w-full text-center animate-in zoom-in-95">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0070f3] to-indigo-600 text-white flex items-center justify-center mx-auto mb-3.5 shadow-lg shadow-blue-500/25">
             <ClipboardList className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-black text-slate-900 mb-1">EDU Pass Staff Portal</h1>
-          <p className="text-xs text-slate-500 mb-6">เข้าสู่ระบบจัดการกิจกรรม คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี</p>
+          <p className="text-xs text-slate-500 mb-5 font-medium">เข้าสู่ระบบจัดการกิจกรรม คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี</p>
+
+          {/* Role Cards Quick Selection */}
+          <div className="grid grid-cols-2 gap-2.5 mb-5 text-left">
+            <button
+              type="button"
+              onClick={() => setPinInput('1234')}
+              className={`p-3 rounded-2xl border transition text-left cursor-pointer ${
+                pinInput === '1234'
+                  ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-sm'
+                  : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200/70'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 text-blue-700 font-black text-xs mb-1">
+                <Crown className="w-3.5 h-3.5 shrink-0 text-amber-500" />
+                <span>แอดมินหลัก</span>
+              </div>
+              <div className="text-[10px] text-slate-500 leading-tight">
+                สิทธิ์เต็มระบบ: จัดการกิจกรรม รายงานทั้งคณะ ส่งออก Excel
+              </div>
+              <div className="mt-2 text-[10px] font-mono font-bold text-blue-600">
+                PIN: 1234
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPinInput('5678')}
+              className={`p-3 rounded-2xl border transition text-left cursor-pointer ${
+                pinInput === '5678'
+                  ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/20 shadow-sm'
+                  : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200/70'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 text-emerald-700 font-black text-xs mb-1">
+                <Camera className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                <span>เจ้าหน้าที่สแกน</span>
+              </div>
+              <div className="text-[10px] text-slate-500 leading-tight">
+                จุดสแกนหน้างาน: สแกน QR Code ตรวจบัตร นศ. ฉายจอ
+              </div>
+              <div className="mt-2 text-[10px] font-mono font-bold text-emerald-600">
+                PIN: 5678
+              </div>
+            </button>
+          </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -751,21 +815,11 @@ export default function AdminPortal() {
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-[#0070f3] hover:bg-[#0060df] active:scale-95 text-white font-bold rounded-xl transition shadow-md shadow-blue-500/25 cursor-pointer text-sm"
+              className="w-full py-3.5 bg-gradient-to-r from-[#0070f3] to-blue-700 hover:opacity-95 active:scale-95 text-white font-bold rounded-xl transition shadow-md shadow-blue-500/25 cursor-pointer text-sm"
             >
               เข้าสู่ระบบ EDU Pass
             </button>
           </form>
-
-          <div className="mt-5 p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-left space-y-1">
-            <div className="text-[11px] font-bold text-slate-600">รหัสผ่านตั้งต้นของระบบ:</div>
-            <div className="text-[11px] text-slate-500">
-              • Super Admin (สิทธิ์เต็ม): <span className="font-mono font-bold text-blue-600">1234</span>
-            </div>
-            <div className="text-[11px] text-slate-500">
-              • Staff Scanner (เจ้าหน้าที่สแกน): <span className="font-mono font-bold text-emerald-600">5678</span>
-            </div>
-          </div>
 
           <div className="mt-5 pt-4 border-t border-slate-100 text-center">
             <Link
@@ -819,142 +873,230 @@ export default function AdminPortal() {
 
         {/* Menu Navigation Area */}
         <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-6">
-          {/* Section 1: เมนูหลัก */}
-          <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
-              เมนูหลัก
-            </div>
-            <nav className="space-y-1">
-              <button
-                onClick={() => {
-                  setActiveTab('home');
-                  setSelectedActivity(null);
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'home'
-                    ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <Home className="w-4 h-4 shrink-0" />
-                <span>หน้าหลัก</span>
-              </button>
+          {userRole === 'superadmin' ? (
+            <>
+              {/* Section 1 สำหรับ Super Admin: เมนูหลัก */}
+              <div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2 flex items-center justify-between">
+                  <span>เมนูหลัก</span>
+                  <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Admin</span>
+                </div>
+                <nav className="space-y-1">
+                  <button
+                    onClick={() => {
+                      setActiveTab('home');
+                      setSelectedActivity(null);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'home'
+                        ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Home className="w-4 h-4 shrink-0" />
+                    <span>หน้าหลัก</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('test_qr');
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'test_qr'
-                    ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>ทดสอบ QR Code</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('hours_report');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'hours_report'
+                        ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <BarChart2 className="w-4 h-4 shrink-0" />
+                    <span>รายงานชั่วโมง</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('hours_report');
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'hours_report'
-                    ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <BarChart2 className="w-4 h-4 shrink-0" />
-                <span>รายงานชั่วโมง</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('activity_report');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'activity_report'
+                        ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <FileText className="w-4 h-4 shrink-0" />
+                    <span>รายงานกิจกรรม</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('activity_report');
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'activity_report'
-                    ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <FileText className="w-4 h-4 shrink-0" />
-                <span>รายงานกิจกรรม</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('verify');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'verify'
+                        ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Search className="w-4 h-4 shrink-0" />
+                    <span>ตรวจสอบ</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('verify');
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'verify'
-                    ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <Search className="w-4 h-4 shrink-0" />
-                <span>ตรวจสอบ</span>
-              </button>
-            </nav>
-          </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab('test_qr');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'test_qr'
+                        ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>ทดสอบ QR Code</span>
+                  </button>
+                </nav>
+              </div>
 
-          {/* Section 2: จัดการ */}
-          <div>
-            <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
-              จัดการ
-            </div>
-            <nav className="space-y-1">
-              <button
-                onClick={() => {
-                  setActiveTab('create_activity');
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'create_activity'
-                    ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <Plus className="w-4 h-4 shrink-0" />
-                <span>+ สร้างกิจกรรม</span>
-              </button>
+              {/* Section 2 สำหรับ Super Admin: จัดการระบบ */}
+              <div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2">
+                  จัดการระบบ
+                </div>
+                <nav className="space-y-1">
+                  <button
+                    onClick={() => {
+                      setActiveTab('create_activity');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'create_activity'
+                        ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Plus className="w-4 h-4 shrink-0" />
+                    <span>+ สร้างกิจกรรม</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('manage_activities');
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'manage_activities'
-                    ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <Settings2 className="w-4 h-4 shrink-0" />
-                <span>จัดการกิจกรรม</span>
-              </button>
+                  <button
+                    onClick={() => {
+                      setActiveTab('manage_activities');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'manage_activities'
+                        ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Settings2 className="w-4 h-4 shrink-0" />
+                    <span>จัดการกิจกรรม</span>
+                  </button>
 
-              <button
-                onClick={() => {
-                  setActiveTab('share_links');
-                  setIsMobileMenuOpen(false);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-                  activeTab === 'share_links'
-                    ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <Share2 className="w-4 h-4 shrink-0" />
-                <span>จัดการลิงก์แชร์</span>
-              </button>
-            </nav>
-          </div>
+                  <button
+                    onClick={() => {
+                      setActiveTab('share_links');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'share_links'
+                        ? 'bg-[#0070f3] text-white shadow-sm shadow-blue-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Share2 className="w-4 h-4 shrink-0" />
+                    <span>จัดการลิงก์แชร์</span>
+                  </button>
+                </nav>
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Section สำหรับ Staff Scanner: เมนูจุดสแกนหน้างานเท่านั้น */}
+              <div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-3 mb-2 flex items-center justify-between">
+                  <span>จุดสแกนหน้างาน</span>
+                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">Scanner</span>
+                </div>
+                <nav className="space-y-1">
+                  <button
+                    onClick={() => {
+                      setActiveTab('home');
+                      setSelectedActivity(null);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'home'
+                        ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Home className="w-4 h-4 shrink-0" />
+                    <span>จุดสแกนเช็คอิน</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setIsScannerOpen(true);
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold bg-emerald-50 text-emerald-800 hover:bg-emerald-100 transition-all cursor-pointer border border-emerald-200"
+                  >
+                    <Camera className="w-4 h-4 shrink-0 text-emerald-600" />
+                    <span>เปิดกล้องสแกน QR</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('verify');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'verify'
+                        ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Search className="w-4 h-4 shrink-0" />
+                    <span>ค้นหา/ตรวจประวัติ นศ.</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('test_qr');
+                      setIsMobileMenuOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
+                      activeTab === 'test_qr'
+                        ? 'bg-emerald-600 text-white shadow-sm shadow-emerald-500/20'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>ทดสอบ QR Code</span>
+                  </button>
+                </nav>
+              </div>
+
+              {/* ขอบเขตสิทธิ์เจ้าหน้าที่จุดสแกน */}
+              <div className="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 text-[11px] text-slate-600 space-y-1.5">
+                <div className="font-bold text-emerald-900 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>ขอบเขตสิทธิ์ Staff Scanner</span>
+                </div>
+                <ul className="space-y-1 text-[11px] text-slate-600 pl-1">
+                  <li className="text-emerald-700 font-semibold">✓ สแกน QR และเช็คชื่อ นศ. หน้างาน</li>
+                  <li className="text-emerald-700 font-semibold">✓ ค้นหาประวัติรายคนหน้างาน</li>
+                  <li className="text-slate-400 line-through">✗ ปิดสร้าง/แก้ไข/ลบกิจกรรม</li>
+                  <li className="text-slate-400 line-through">✗ ปิดรายงานภาพรวมทั้งคณะ</li>
+                  <li className="text-slate-400 line-through">✗ ปิดการลบประวัติผู้เข้าร่วม</li>
+                </ul>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Bottom Profile Area (รองรับ Super Admin vs Staff) */}
@@ -989,13 +1131,15 @@ export default function AdminPortal() {
             </div>
           </div>
 
-          <button
-            onClick={() => setIsPasswordModalOpen(true)}
-            className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs transition border border-slate-200/80 cursor-pointer"
-          >
-            <KeyRound className="w-3.5 h-3.5 text-slate-500" />
-            <span>เปลี่ยนรหัสผ่าน</span>
-          </button>
+          {userRole === 'superadmin' && (
+            <button
+              onClick={() => setIsPasswordModalOpen(true)}
+              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs transition border border-slate-200/80 cursor-pointer"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+              <span>เปลี่ยนรหัสผ่าน</span>
+            </button>
+          )}
 
           <button
             onClick={() => setIsAuthenticated(false)}
@@ -1009,6 +1153,55 @@ export default function AdminPortal() {
 
       {/* Main Content Area (ฝั่งขวา) */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto">
+        {/* Role Identity Banner */}
+        <div
+          className={`px-6 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between text-xs font-bold gap-2 shadow-sm ${
+            userRole === 'superadmin'
+              ? 'bg-gradient-to-r from-blue-900 via-indigo-950 to-slate-950 text-white'
+              : 'bg-gradient-to-r from-emerald-800 via-teal-900 to-slate-950 text-white'
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            {userRole === 'superadmin' ? (
+              <>
+                <Crown className="w-4 h-4 text-amber-400 shrink-0" />
+                <span className="font-black text-amber-300">สิทธิ์ผู้ดูแลระบบหลัก (Super Admin):</span>
+                <span className="text-blue-100 font-normal hidden md:inline">
+                  สิทธิ์เต็มในการบริหารจัดการกิจกรรม, ตรวจสอบรายงานภาพรวมทั้งคณะ, ส่งออก Excel และตั้งค่าระบบ
+                </span>
+              </>
+            ) : (
+              <>
+                <Camera className="w-4 h-4 text-emerald-300 shrink-0" />
+                <span className="font-black text-emerald-300">โหมดเจ้าหน้าที่จุดสแกน (Staff Scanner Station):</span>
+                <span className="text-emerald-100 font-normal hidden md:inline">
+                  จำกัดสิทธิ์เฉพาะการสแกน QR Code เช็คอินหน้างาน และตรวจค้นหารายบุคคล (ไม่มีสิทธิ์ลบหรือแก้ไขกิจกรรม)
+                </span>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {userRole === 'staff' && (
+              <button
+                onClick={() => setIsScannerOpen(true)}
+                className="px-3 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] flex items-center gap-1.5 transition shadow-sm cursor-pointer"
+              >
+                <Camera className="w-3.5 h-3.5" />
+                <span>เปิดกล้องสแกนทันที</span>
+              </button>
+            )}
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                userRole === 'superadmin'
+                  ? 'bg-blue-500/30 text-blue-200 border border-blue-400/30'
+                  : 'bg-emerald-500/30 text-emerald-200 border border-emerald-400/30'
+              }`}
+            >
+              {userRole === 'superadmin' ? 'Super Admin' : 'Staff Scanner'}
+            </span>
+          </div>
+        </div>
         {/* Offline Queue Notification Banner */}
         {(!isOnline || offlineQueue.length > 0) && (
           <div className="px-6 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between animate-in fade-in">
@@ -1058,14 +1251,40 @@ export default function AdminPortal() {
         )}
 
         <div className="p-6 md:p-10 max-w-7xl w-full mx-auto">
+          {/* Staff Access Restriction Guard: ป้องกันไม่ให้ Staff เข้าถึงเมนูที่สงวนไว้สำหรับ Super Admin */}
+          {userRole === 'staff' && (activeTab === 'hours_report' || activeTab === 'activity_report' || activeTab === 'create_activity' || activeTab === 'manage_activities' || activeTab === 'share_links') && (
+            <div className="bg-white rounded-3xl p-8 sm:p-12 text-center max-w-lg mx-auto my-8 border border-slate-200 shadow-sm animate-in zoom-in-95">
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center mx-auto mb-4 border border-amber-200">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 mb-2">เฉพาะผู้ดูแลระบบหลัก (Super Admin)</h3>
+              <p className="text-xs text-slate-500 mb-6 leading-relaxed">
+                บัญชีเจ้าหน้าที่จุดสแกน (Staff Scanner) ไม่มีสิทธิ์เข้าถึงรายงานภาพรวมหรือการจัดการกิจกรรมของคณะ หากต้องการใช้งานฟังก์ชันนี้ กรุณาเข้าสู่ระบบด้วยรหัส Super Admin (PIN: 1234)
+              </p>
+              <button
+                onClick={() => setActiveTab('home')}
+                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition shadow-sm cursor-pointer"
+              >
+                กลับไปที่จุดสแกนเช็คอิน
+              </button>
+            </div>
+          )}
+
           {/* TAB 1: หน้าหลัก (เลือกกิจกรรม & ตารางการ์ดตามภาพต้นฉบับ 100%) */}
           {activeTab === 'home' && !selectedActivity && (
             <div className="space-y-6">
               {/* Header Title & Filter */}
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                  เลือกกิจกรรม
-                </h2>
+                <div>
+                  <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
+                    {userRole === 'superadmin' ? 'เลือกกิจกรรม' : 'เลือกกิจกรรมเพื่อเปิดจุดสแกน'}
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">
+                    {userRole === 'superadmin'
+                      ? 'จัดการกิจกรรม สแกนเช็คอิน คัดลอก หรือเปิดฉายจอโปรเจกเตอร์'
+                      : 'เลือกกิจกรรมที่กำลังจัดเพื่อเปิดกล้องสแกน QR Code หน้างานและเช็คชื่อ'}
+                  </p>
+                </div>
 
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   <div className="relative flex-1 sm:w-64">
@@ -1143,9 +1362,13 @@ export default function AdminPortal() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => setSelectedActivity(act)}
-                          className="flex-1 py-2.5 bg-[#0070f3] hover:bg-[#0060df] active:scale-98 text-white font-bold rounded-xl text-xs transition shadow-sm cursor-pointer text-center"
+                          className={`flex-1 py-2.5 active:scale-98 text-white font-bold rounded-xl text-xs transition shadow-sm cursor-pointer text-center ${
+                            userRole === 'staff'
+                              ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
+                              : 'bg-[#0070f3] hover:bg-[#0060df]'
+                          }`}
                         >
-                          เลือกกิจกรรมนี้
+                          {userRole === 'staff' ? 'เปิดจุดสแกนกิจกรรมนี้' : 'เลือกกิจกรรมนี้'}
                         </button>
                         <button
                           onClick={() => {
@@ -1243,13 +1466,15 @@ export default function AdminPortal() {
                         <Tv className="w-3.5 h-3.5" />
                         <span>ฉายขึ้นจอ</span>
                       </button>
-                      <button
-                        onClick={() => handleDuplicateActivity(selectedActivity)}
-                        className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
-                      >
-                        <Copy className="w-3.5 h-3.5 text-slate-500" />
-                        <span>คัดลอก</span>
-                      </button>
+                      {userRole === 'superadmin' && (
+                        <button
+                          onClick={() => handleDuplicateActivity(selectedActivity)}
+                          className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-slate-500" />
+                          <span>คัดลอก</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1405,15 +1630,17 @@ export default function AdminPortal() {
                       className="px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none w-full sm:w-48"
                     />
 
-                    <button
-                      onClick={() => {
-                        window.open(`/api/export?type=all`, '_blank');
-                      }}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>ส่งออก Excel</span>
-                    </button>
+                    {userRole === 'superadmin' && (
+                      <button
+                        onClick={() => {
+                          window.open(`/api/export?type=all`, '_blank');
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition shadow-sm cursor-pointer shrink-0"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>ส่งออก Excel</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -1430,6 +1657,9 @@ export default function AdminPortal() {
                         <th className="py-3 px-4 text-center">รอบ</th>
                         <th className="py-3 px-4 text-center">ชั่วโมง</th>
                         <th className="py-3 px-4 text-center">เวลาเช็คอิน</th>
+                        {userRole === 'superadmin' && (
+                          <th className="py-3 px-4 text-center">จัดการ</th>
+                        )}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -1472,6 +1702,17 @@ export default function AdminPortal() {
                             </td>
                             <td className="py-3 px-4 text-center font-bold text-[#0070f3]">+{att.hours} ชม.</td>
                             <td className="py-3 px-4 text-center text-slate-400 font-mono text-[11px]">{att.dateRecorded}</td>
+                            {userRole === 'superadmin' && (
+                              <td className="py-3 px-4 text-center">
+                                <button
+                                  onClick={() => handleDeleteRecord(att.recordId, att.studentId)}
+                                  className="p-1.5 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition cursor-pointer"
+                                  title={`ลบการเช็คอินของ ${att.studentId}`}
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 mx-auto" />
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         ))}
                     </tbody>
@@ -1536,8 +1777,8 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {/* TAB 3: รายงานชั่วโมง */}
-          {activeTab === 'hours_report' && (
+          {/* TAB 3: รายงานชั่วโมง (เฉพาะ Super Admin) */}
+          {activeTab === 'hours_report' && userRole === 'superadmin' && (
             <div className="space-y-6">
               {/* KPI Cards Row */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1897,8 +2138,8 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {/* TAB 4: รายงานกิจกรรม */}
-          {activeTab === 'activity_report' && (
+          {/* TAB 4: รายงานกิจกรรม (เฉพาะ Super Admin) */}
+          {activeTab === 'activity_report' && userRole === 'superadmin' && (
             <div className="space-y-6">
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
@@ -2045,8 +2286,8 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {/* TAB 6: + สร้างกิจกรรม */}
-          {activeTab === 'create_activity' && (
+          {/* TAB 6: + สร้างกิจกรรม (เฉพาะ Super Admin) */}
+          {activeTab === 'create_activity' && userRole === 'superadmin' && (
             <div className="max-w-2xl mx-auto space-y-6">
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
                 <h2 className="text-xl font-black text-slate-900 mb-1 flex items-center gap-2">
@@ -2216,8 +2457,8 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {/* TAB 7: จัดการกิจกรรม */}
-          {activeTab === 'manage_activities' && (
+          {/* TAB 7: จัดการกิจกรรม (เฉพาะ Super Admin) */}
+          {activeTab === 'manage_activities' && userRole === 'superadmin' && (
             <div className="space-y-6">
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
@@ -2296,8 +2537,8 @@ export default function AdminPortal() {
             </div>
           )}
 
-          {/* TAB 8: จัดการลิงก์แชร์ */}
-          {activeTab === 'share_links' && (
+          {/* TAB 8: จัดการลิงก์แชร์ (เฉพาะ Super Admin) */}
+          {activeTab === 'share_links' && userRole === 'superadmin' && (
             <div className="max-w-2xl mx-auto space-y-6">
               <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-sm text-center">
                 <div className="w-16 h-16 rounded-2xl bg-blue-50 text-[#0070f3] flex items-center justify-center mx-auto mb-4">
