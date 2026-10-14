@@ -35,8 +35,14 @@ function StudentPortalContent() {
   const [dynamicQrValue, setDynamicQrValue] = useState('');
   const [qrCountdown, setQrCountdown] = useState(30);
   const [isCertOpen, setIsCertOpen] = useState(false);
+  const [targetHours, setTargetHours] = useState(60);
 
-  const TARGET_HOURS = 60;
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('edupass_required_hours');
+      if (saved) setTargetHours(Number(saved) || 60);
+    }
+  }, []);
 
   useEffect(() => {
     // ดึง studentId จาก URL query หรือ localStorage
@@ -95,24 +101,34 @@ function StudentPortalContent() {
 
   const getCategoryTheme = (category: string) => {
     switch (category) {
+      case 'คณะ':
       case 'มหาวิทยาลัย':
         return {
           icon: <Award className="w-5 h-5 text-purple-600" />,
           cardBg: 'bg-purple-50/70 border-purple-200/70 text-purple-950',
           numberColor: 'text-purple-700',
         };
+      case 'สาขาวิชา':
       case 'คณะ/สาขา':
         return {
           icon: <Briefcase className="w-5 h-5 text-indigo-600" />,
           cardBg: 'bg-indigo-50/70 border-indigo-200/70 text-indigo-950',
           numberColor: 'text-indigo-700',
         };
+      case 'สโมสรนักศึกษา':
+        return {
+          icon: <Award className="w-5 h-5 text-amber-600" />,
+          cardBg: 'bg-amber-50/70 border-amber-200/70 text-amber-950',
+          numberColor: 'text-amber-700',
+        };
+      case 'จิตอาสา/บำเพ็ญประโยชน์':
       case 'บำเพ็ญประโยชน์/จิตอาสา':
         return {
           icon: <HeartHandshake className="w-5 h-5 text-fuchsia-600" />,
           cardBg: 'bg-fuchsia-50/70 border-fuchsia-200/70 text-fuchsia-950',
           numberColor: 'text-fuchsia-700',
         };
+      case 'เสริมทักษะวิชาชีพ':
       case 'ส่งเสริมวิชาการ/วิชาชีพ':
         return {
           icon: <BookOpen className="w-5 h-5 text-violet-600" />,
@@ -139,7 +155,7 @@ function StudentPortalContent() {
 
   if (!data) return null;
 
-  const percentage = Math.min(100, Math.round((data.totalHours / TARGET_HOURS) * 100));
+  const percentage = Math.min(100, Math.round((data.totalHours / targetHours) * 100));
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12 space-y-8 animate-in fade-in duration-300">
@@ -246,17 +262,17 @@ function StudentPortalContent() {
         <div className="mt-6 pt-4 border-t border-white/10 flex justify-between items-center relative z-10">
           <div>
             <span className="text-[10px] text-purple-200/60 uppercase block font-bold">ชั่วโมงสะสมรวม</span>
-            <span className="text-xl font-black text-white">{data.totalHours} <span className="text-xs font-normal text-purple-300">/ {TARGET_HOURS} ชม.</span></span>
+            <span className="text-xl font-black text-white">{data.totalHours} <span className="text-xs font-normal text-purple-300">/ {targetHours} ชม.</span></span>
           </div>
 
           <div>
-            {data.totalHours >= TARGET_HOURS ? (
+            {data.totalHours >= targetHours ? (
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
                 <CheckCircle2 className="w-3.5 h-3.5" /> ครบเกณฑ์แล้ว
               </span>
             ) : (
               <span className="px-3 py-1 rounded-full text-xs font-bold bg-fuchsia-500/20 text-fuchsia-300 border border-fuchsia-400/30 flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" /> ขาดอีก {TARGET_HOURS - data.totalHours} ชม.
+                <Clock className="w-3.5 h-3.5" /> ขาดอีก {targetHours - data.totalHours} ชม.
               </span>
             )}
           </div>
@@ -272,7 +288,7 @@ function StudentPortalContent() {
             </span>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl sm:text-4xl font-black text-purple-950">{data.totalHours}</span>
-              <span className="text-purple-900/40 text-sm font-bold">/ {TARGET_HOURS} ชั่วโมง</span>
+              <span className="text-purple-900/40 text-sm font-bold">/ {targetHours} ชั่วโมง</span>
             </div>
           </div>
 
@@ -375,6 +391,7 @@ function StudentPortalContent() {
         onClose={() => setIsCertOpen(false)}
         student={data.student}
         totalHours={data.totalHours}
+        requiredHours={targetHours}
       />
     </div>
   );

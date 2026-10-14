@@ -31,7 +31,8 @@ export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   {
     id: 'ACT-2026-01',
     title: 'EDU Talk : Debate Competition 2026',
-    category: 'คณะ/สาขา',
+    category: 'คณะ',
+    activityType: 'บังคับ',
     hours: 3,
     date: '22 Sep 2026 10:00',
     academicYear: '2569',
@@ -41,7 +42,8 @@ export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   {
     id: 'ACT-2026-02',
     title: 'EDU PREMIER CUP 2026 / Out',
-    category: 'คณะ/สาขา',
+    category: 'สโมสรนักศึกษา',
+    activityType: 'เลือก',
     hours: 2,
     date: '19 Sep 2026 17:30',
     academicYear: '2569',
@@ -51,7 +53,8 @@ export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   {
     id: 'ACT-2026-03',
     title: 'EDU GIRLS UNITY GAMES 2026 / บ่าย',
-    category: 'คณะ/สาขา',
+    category: 'สโมสรนักศึกษา',
+    activityType: 'เลือก',
     hours: 3,
     date: '19 Sep 2026 13:00',
     academicYear: '2569',
@@ -61,7 +64,8 @@ export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   {
     id: 'ACT-2026-04',
     title: 'EDU PREMIER CUP 2026 / In',
-    category: 'คณะ/สาขา',
+    category: 'สโมสรนักศึกษา',
+    activityType: 'เลือก',
     hours: 2,
     date: '19 Sep 2026 11:50',
     academicYear: '2569',
@@ -71,7 +75,8 @@ export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   {
     id: 'ACT-2026-05',
     title: 'EDU GIRLS UNITY GAMES 2026 / เช้า',
-    category: 'คณะ/สาขา',
+    category: 'สโมสรนักศึกษา',
+    activityType: 'เลือก',
     hours: 3,
     date: '19 Sep 2026 07:30',
     academicYear: '2569',
@@ -81,7 +86,8 @@ export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   {
     id: 'ACT-2026-06',
     title: 'KHUTBAH NEXT GEN คุตบะห์ × สุนทรพจน์',
-    category: 'ส่งเสริมวิชาการ/วิชาชีพ',
+    category: 'เสริมทักษะวิชาชีพ',
+    activityType: 'เลือก',
     hours: 3,
     date: '8 Sep 2026 10:00',
     academicYear: '2569',
@@ -91,7 +97,8 @@ export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   {
     id: 'ACT-2026-07',
     title: "USRAH (us) SA'EDAH ครั้งที่ 2 ตอน บ้านแห่งความผูกพัน เพราะเราคือครอบครัวเดียวกัน",
-    category: 'บำเพ็ญประโยชน์/จิตอาสา',
+    category: 'จิตอาสา/บำเพ็ญประโยชน์',
+    activityType: 'เลือก',
     hours: 4,
     date: '31 Aug 2026 17:00',
     academicYear: '2569',
@@ -100,13 +107,14 @@ export const DEFAULT_UNIPASS_ACTIVITIES: Activity[] = [
   },
   {
     id: 'ACT-2026-08',
-    title: 'กลุ่มศึกษาอัลกุรอานรวมครั้งที่ 2/69',
-    category: 'มหาวิทยาลัย',
+    title: 'โครงการปฐมนิเทศและเสริมสร้างคุณธรรมจริยธรรมวิชาชีพครู',
+    category: 'คณะ',
+    activityType: 'บังคับ',
     hours: 2,
     date: '31 Aug 2026 10:00',
     academicYear: '2569',
     location: 'มัสยิดประจำมหาวิทยาลัยฟาฏอนี',
-    description: 'โครงการศึกษาและท่องจำอัลกุรอานรวม ประจำปีการศึกษา 2569',
+    description: 'โครงการพัฒนาคุณธรรมจริยธรรมและเจตคติต่อวิชาชีพครู ประจำปีการศึกษา 2569',
   },
 ];
 
@@ -159,6 +167,7 @@ interface AppsScriptData {
     ID: string;
     Title: string;
     Category: string;
+    ActivityType?: string;
     Hours: number;
     Date: string;
     AcademicYear: string | number;
@@ -171,6 +180,7 @@ interface AppsScriptData {
     ActivityID: string;
     ActivityTitle: string;
     Category: string;
+    ActivityType?: string;
     HoursEarned: number;
     DateRecorded: string;
     Status: string;
@@ -277,7 +287,8 @@ export async function getActivities(): Promise<Activity[]> {
       activitiesMap.set(id, {
         id,
         title: String(a.Title || '').trim(),
-        category: (a.Category || 'มหาวิทยาลัย') as Activity['category'],
+        category: (a.Category || 'คณะ') as Activity['category'],
+        activityType: (a.ActivityType || 'เลือก') as Activity['activityType'],
         hours: Number(a.Hours || 0),
         date: dateStr,
         academicYear: String(a.AcademicYear || '2569').trim(),
@@ -345,6 +356,26 @@ export async function createActivity(activity: Activity): Promise<boolean> {
     return res.ok;
   } catch (err) {
     console.error('Error creating activity via Apps Script:', err);
+    return false;
+  }
+}
+
+// 4.1 ลบกิจกรรมออกจากระบบ
+export async function deleteActivity(activityId: string): Promise<boolean> {
+  try {
+    const res = await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'delete_activity',
+        activityId,
+      }),
+      redirect: 'follow',
+    });
+
+    return res.ok;
+  } catch (err) {
+    console.error('Error deleting activity via Apps Script:', err);
     return false;
   }
 }

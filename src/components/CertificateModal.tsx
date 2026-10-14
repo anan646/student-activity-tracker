@@ -10,6 +10,7 @@ interface CertificateModalProps {
   onClose: () => void;
   student: Student;
   totalHours: number;
+  requiredHours?: number;
 }
 
 export default function CertificateModal({
@@ -17,6 +18,7 @@ export default function CertificateModal({
   onClose,
   student,
   totalHours,
+  requiredHours = 60,
 }: CertificateModalProps) {
   const printAreaRef = useRef<HTMLDivElement>(null);
 
@@ -102,7 +104,7 @@ export default function CertificateModal({
             <p className="text-xs sm:text-sm text-slate-700 max-w-xl mx-auto leading-relaxed mb-8">
               ได้เข้าร่วมกิจกรรมพัฒนานักศึกษาและสะสมชั่วโมงกิจกรรมครบถ้วนรวมทั้งสิ้น{' '}
               <strong className="text-amber-700 text-base font-black font-mono">{totalHours}</strong>{' '}
-              ชั่วโมง {totalHours >= 60 ? '(ครบถ้วนตามเกณฑ์บังคับขั้นต่ำของคณะศึกษาศาสตร์)' : ''}
+              ชั่วโมง {totalHours >= requiredHours ? `(ครบถ้วนตามเกณฑ์บังคับขั้นต่ำ ${requiredHours} ชั่วโมง ของคณะศึกษาศาสตร์)` : ''}
               <br />
               มีความมุ่งมั่น มีจิตสาธารณะ และร่วมสร้างสรรค์คุณประโยชน์แก่สังคม
             </p>

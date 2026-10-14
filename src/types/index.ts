@@ -7,10 +7,21 @@ export interface Student {
   yearLevel: number;    // ชั้นปี 1, 2, 3, 4
 }
 
+export type ActivityCategory = 
+  | 'คณะ' 
+  | 'สาขาวิชา' 
+  | 'สโมสรนักศึกษา' 
+  | 'จิตอาสา/บำเพ็ญประโยชน์' 
+  | 'เสริมทักษะวิชาชีพ'
+  | string;
+
+export type ActivityType = 'บังคับ' | 'เลือก';
+
 export interface Activity {
   id: string;
   title: string;
-  category: 'มหาวิทยาลัย' | 'คณะ/สาขา' | 'บำเพ็ญประโยชน์/จิตอาสา' | 'ส่งเสริมวิชาการ/วิชาชีพ';
+  category: ActivityCategory;
+  activityType?: ActivityType; // บังคับ หรือ เลือก
   hours: number;
   date: string;         // YYYY-MM-DD or formatted date string
   academicYear: string; // เช่น 2569
@@ -26,6 +37,7 @@ export interface AttendanceRecord {
   activityId: string;
   activityTitle: string;
   category: string;
+  activityType?: ActivityType;
   hoursEarned: number;
   dateRecorded: string;
   status: 'APPROVED' | 'PENDING' | 'REJECTED';
