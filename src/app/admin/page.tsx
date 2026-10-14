@@ -1487,16 +1487,9 @@ export default function AdminPortal() {
           <p className="text-xs text-slate-500 mb-5 font-medium">เข้าสู่ระบบจัดการกิจกรรม คณะศึกษาศาสตร์ มหาวิทยาลัยฟาฏอนี</p>
 
           {/* Role Cards Quick Selection */}
+          {/* Role Cards Info */}
           <div className="grid grid-cols-2 gap-2.5 mb-5 text-left">
-            <button
-              type="button"
-              onClick={() => setPinInput(superAdminPin)}
-              className={`p-3 rounded-2xl border transition text-left cursor-pointer ${
-                pinInput === superAdminPin
-                  ? 'bg-blue-50/80 border-blue-400 ring-2 ring-blue-500/20 shadow-sm'
-                  : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200/70'
-              }`}
-            >
+            <div className="p-3 rounded-2xl border bg-blue-50/50 border-blue-200/80">
               <div className="flex items-center gap-1.5 text-blue-700 font-black text-xs mb-1">
                 <Crown className="w-3.5 h-3.5 shrink-0 text-amber-500" />
                 <span>แอดมินหลัก</span>
@@ -1504,20 +1497,9 @@ export default function AdminPortal() {
               <div className="text-[10px] text-slate-500 leading-tight">
                 สิทธิ์เต็มระบบ: จัดการกิจกรรม รายงานทั้งคณะ ส่งออก Excel
               </div>
-              <div className="mt-2 text-[10px] font-mono font-bold text-blue-600">
-                PIN: {superAdminPin}
-              </div>
-            </button>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => setPinInput(staffScannerPin)}
-              className={`p-3 rounded-2xl border transition text-left cursor-pointer ${
-                pinInput === staffScannerPin
-                  ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-500/20 shadow-sm'
-                  : 'bg-slate-50 hover:bg-slate-100/80 border-slate-200/70'
-              }`}
-            >
+            <div className="p-3 rounded-2xl border bg-emerald-50/50 border-emerald-200/80">
               <div className="flex items-center gap-1.5 text-emerald-700 font-black text-xs mb-1">
                 <Camera className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
                 <span>เจ้าหน้าที่สแกน</span>
@@ -1525,10 +1507,7 @@ export default function AdminPortal() {
               <div className="text-[10px] text-slate-500 leading-tight">
                 จุดสแกนหน้างาน: สแกน QR Code ตรวจบัตร นศ. ฉายจอ
               </div>
-              <div className="mt-2 text-[10px] font-mono font-bold text-emerald-600">
-                PIN: {staffScannerPin}
-              </div>
-            </button>
+            </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -1537,7 +1516,7 @@ export default function AdminPortal() {
                 type="password"
                 value={pinInput}
                 onChange={(e) => setPinInput(e.target.value)}
-                placeholder="กรอกรหัส PIN (เช่น 1234 หรือ 5678)"
+                placeholder="กรอกรหัส PIN เข้าสู่ระบบ"
                 className="w-full text-center tracking-widest text-2xl font-black py-3.5 px-4 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-[#0070f3] text-slate-900 transition"
                 autoFocus
                 required
@@ -1546,7 +1525,7 @@ export default function AdminPortal() {
 
             {pinError && (
               <p className="text-xs font-bold text-rose-600 animate-in fade-in">
-                รหัสผ่านไม่ถูกต้อง (Super Admin: {superAdminPin} / Staff: {staffScannerPin})
+                รหัส PIN ไม่ถูกต้อง กรุณาลองใหม่อีกครั้ง
               </p>
             )}
 
@@ -2032,7 +2011,7 @@ export default function AdminPortal() {
               </div>
               <h3 className="text-xl font-black text-slate-900 mb-2">เฉพาะผู้ดูแลระบบหลัก (Super Admin)</h3>
               <p className="text-xs text-slate-500 mb-6 leading-relaxed">
-                บัญชีเจ้าหน้าที่จุดสแกน (Staff Scanner) ไม่มีสิทธิ์เข้าถึงรายงานภาพรวมหรือการจัดการกิจกรรมของคณะ หากต้องการใช้งานฟังก์ชันนี้ กรุณาเข้าสู่ระบบด้วยรหัส Super Admin (PIN: 1234)
+                บัญชีเจ้าหน้าที่จุดสแกน (Staff Scanner) ไม่มีสิทธิ์เข้าถึงรายงานภาพรวมหรือการจัดการกิจกรรมของคณะ หากต้องการใช้งานฟังก์ชันนี้ กรุณาเข้าสู่ระบบด้วยรหัสผ่านผู้ดูแลระบบหลัก (Super Admin)
               </p>
               <button
                 onClick={() => setActiveTab('home')}
