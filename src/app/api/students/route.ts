@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getStudents, getActivities, getAttendanceRecords } from '@/lib/googleSheets';
+import { getServerStore } from '@/lib/serverStore';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const studentId = searchParams.get('studentId');
+  const store = getServerStore();
 
-  const [students, activities, records] = await Promise.all([
-    getStudents(),
-    getActivities(),
-    getAttendanceRecords(),
-  ]);
+  const { students, activities, records, studentStatusMap, settings } = store;
 
   if (studentId) {
     const student = students.find((s) => s.studentId === studentId);
@@ -21,25 +18,36 @@ export async function GET(request: Request) {
     const totalHours = studentRecords.reduce((sum, r) => sum + r.hoursEarned, 0);
 
     const hoursByCategory: Record<string, number> = {
+      'คณะ': 0,
+      'สาขาวิชา': 0,
+      'สโมสรนักศึกษา': 0,
+      'จิตอาสา/บำเพ็ญประโยชน์': 0,
+      'เสริมทักษะวิชาชีพ': 0,
       'มหาวิทยาลัย': 0,
       'คณะ/สาขา': 0,
-      'บำเพ็ญประโยชน์/จิตอาสา': 0,
-      'ส่งเสริมวิชาการ/วิชาชีพ': 0,
     };
 
     studentRecords.forEach((r) => {
-      if (hoursByCategory[r.category] !== undefined) {
-        hoursByCategory[r.category] += r.hoursEarned;
+      const cat = r.category || 'คณะ';
+      if (hoursByCategory[cat] !== undefined) {
+        hoursByCategory[cat] += r.hoursEarned;
       } else {
-        hoursByCategory[r.category] = r.hoursEarned;
+        hoursByCategory[cat] = r.hoursEarned;
       }
     });
 
+    const status = studentStatusMap[studentId] || student.status || 'ACTIVE';
+
     return NextResponse.json({
-      student,
+      student: {
+        ...student,
+        status,
+      },
       totalHours,
+      requiredHours: settings.requiredHours || 60,
       hoursByCategory,
       records: studentRecords,
+      version: store.version,
     });
   }
 
@@ -47,5 +55,8 @@ export async function GET(request: Request) {
     students,
     activities,
     records,
+    studentStatusMap,
+    settings,
+    version: store.version,
   });
 }

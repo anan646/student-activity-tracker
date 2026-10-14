@@ -19,11 +19,13 @@ import {
   User,
   ShieldCheck,
   RefreshCw,
-  FileCheck
+  FileCheck,
+  Radio
 } from 'lucide-react';
 import { StudentSummary } from '@/types';
 import CertificateModal from '@/components/CertificateModal';
 import { generateDynamicQrPayload } from '@/lib/dynamicQr';
+import { useStudentRealtimeSync } from '@/lib/useRealtimeSync';
 
 function StudentPortalContent() {
   const router = useRouter();
@@ -37,22 +39,17 @@ function StudentPortalContent() {
   const [isCertOpen, setIsCertOpen] = useState(false);
   const [targetHours, setTargetHours] = useState(60);
 
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('edupass_required_hours');
-      if (saved) setTargetHours(Number(saved) || 60);
-    }
-  }, []);
+  const studentIdFromQuery = searchParams.get('id');
+  const [currentId, setCurrentId] = useState<string>(studentIdFromQuery || '');
 
   useEffect(() => {
-    // ดึง studentId จาก URL query หรือ localStorage
-    let id = searchParams.get('id');
-    if (!id) {
+    let id = studentIdFromQuery;
+    if (!id && typeof window !== 'undefined') {
       const saved = localStorage.getItem('edupass_user') || localStorage.getItem('unipass_user');
       if (saved) {
         try {
           const user = JSON.parse(saved);
-          if (user.role === 'student') {
+          if (user.role === 'student' && user.studentId) {
             id = user.studentId;
           }
         } catch (e) {}
@@ -64,26 +61,56 @@ function StudentPortalContent() {
       return;
     }
 
-    fetchStudentData(id);
-  }, [searchParams]);
+    setCurrentId(id);
+    fetchStudentData(id, true);
+  }, [studentIdFromQuery]);
 
-  const fetchStudentData = async (studentId: string) => {
-    setLoading(true);
+  const fetchStudentData = async (studentId: string, showLoader = false) => {
+    if (showLoader) setLoading(true);
     try {
-      const res = await fetch(`/api/students?studentId=${encodeURIComponent(studentId)}`);
+      const res = await fetch(`/api/students?studentId=${encodeURIComponent(studentId)}`, {
+        cache: 'no-store',
+      });
       if (!res.ok) {
-        router.push('/login');
+        if (showLoader) router.push('/login');
         return;
       }
       const json = await res.json();
       setData(json);
+      if (json.requiredHours) {
+        setTargetHours(json.requiredHours);
+      }
     } catch (err) {
       console.error(err);
-      router.push('/login');
+      if (showLoader) router.push('/login');
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   };
+
+  // Real-time synchronization hook: ฟัง Event การเช็คอิน/เทียบโอนจากจุดสแกนและแอดมินแบบเรียลไทม์
+  const { isLiveConnected, notification, clearNotification } = useStudentRealtimeSync(
+    currentId || data?.student?.studentId,
+    (activityTitle, hours) => {
+      if (currentId || data?.student?.studentId) {
+        fetchStudentData(currentId || data!.student.studentId, false);
+      }
+    },
+    () => {
+      if (currentId || data?.student?.studentId) {
+        fetchStudentData(currentId || data!.student.studentId, false);
+      }
+    }
+  );
+
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        clearNotification();
+      }, 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification, clearNotification]);
 
   useEffect(() => {
     if (!data?.student?.studentId) return;
@@ -159,6 +186,32 @@ function StudentPortalContent() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12 space-y-8 animate-in fade-in duration-300">
+      {/* Real-time Push Notification Toast */}
+      {notification && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-5 py-4 rounded-3xl shadow-2xl flex items-center gap-4 animate-in slide-in-from-top-4 border border-emerald-400/40 max-w-md w-full mx-4 backdrop-blur-md">
+          <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center shrink-0 shadow-inner">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="font-bold text-[11px] uppercase tracking-wider text-emerald-200 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              <span>เช็คอินกิจกรรมสำเร็จ (เรียลไทม์)</span>
+            </div>
+            <div className="text-sm font-black truncate text-white">{notification.title}</div>
+            <div className="text-xs font-semibold text-emerald-100">
+              +{notification.hours} ชั่วโมงเข้าสู่ระบบ EDU Pass ของคุณแล้ว
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={clearNotification}
+            className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center text-xs font-bold transition cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Top Profile Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/80 backdrop-blur-xl p-5 sm:p-6 rounded-3xl border border-purple-100 shadow-sm">
         <div className="flex items-center gap-3.5">
@@ -175,6 +228,10 @@ function StudentPortalContent() {
               </span>
               <span className="text-xs font-mono font-bold text-purple-900/40">
                 {data.student.studentId}
+              </span>
+              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>สด เรียลไทม์</span>
               </span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-purple-950">{data.student.name}</h1>

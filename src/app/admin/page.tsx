@@ -72,6 +72,7 @@ import {
   exportActivityStudentsWord,
   exportActivityStudentsPdf,
 } from '@/lib/exportUtils';
+import { useRealtimeSync } from '@/lib/useRealtimeSync';
 
 type MenuTab = 
   | 'home' 
@@ -276,6 +277,86 @@ export default function AdminPortal() {
     }
   };
 
+  // Real-time synchronization across all devices (Students, Admin, Scanner Station)
+  const { isConnected: isLiveConnected } = useRealtimeSync({
+    enabled: isAuthenticated,
+    pollIntervalMs: 3500,
+    onEvent: (event) => {
+      if (event.type === 'RECORD_ATTENDANCE' || event.type === 'MANUAL_GRANT_CREDIT') {
+        const newRecs: AttendanceRecord[] = event.payload?.records || [];
+        if (newRecs.length > 0) {
+          setRecords((prev) => {
+            const map = new Map<string, AttendanceRecord>();
+            prev.forEach((r) => map.set(r.id, r));
+            newRecs.forEach((r) => map.set(r.id, r));
+            return Array.from(map.values());
+          });
+        }
+      } else if (event.type === 'CREATE_ACTIVITY') {
+        const act: Activity = event.payload?.activity;
+        if (act) {
+          setActivities((prev) => [act, ...prev.filter((a) => a.id !== act.id)]);
+        }
+      } else if (event.type === 'DELETE_ACTIVITY') {
+        const actId: string = event.payload?.activityId;
+        if (actId) {
+          setActivities((prev) => prev.filter((a) => a.id !== actId));
+          if (selectedActivity?.id === actId) setSelectedActivity(null);
+          if (projectorActivity?.id === actId) setProjectorActivity(null);
+        }
+      } else if (event.type === 'ADD_STUDENT') {
+        const st: Student = event.payload?.student;
+        if (st) {
+          setStudents((prev) => [st, ...prev.filter((s) => s.studentId !== st.studentId)]);
+        }
+      } else if (event.type === 'IMPORT_STUDENTS') {
+        const newSts: Student[] = event.payload?.students || [];
+        if (newSts.length > 0) {
+          setStudents((prev) => {
+            const map = new Map<string, Student>();
+            prev.forEach((s) => map.set(s.studentId, s));
+            newSts.forEach((s) => map.set(s.studentId, s));
+            return Array.from(map.values());
+          });
+        }
+      } else if (event.type === 'DELETE_STUDENT') {
+        const sId: string = event.payload?.studentId;
+        if (sId) {
+          setStudents((prev) => prev.filter((s) => s.studentId !== sId));
+        }
+      } else if (event.type === 'UPDATE_STUDENT_STATUS') {
+        const { studentId, status } = event.payload || {};
+        if (studentId && status) {
+          setStudentStatusMap((prev) => ({ ...prev, [studentId]: status }));
+        }
+      } else if (event.type === 'UPDATE_SETTINGS') {
+        const settings = event.payload?.settings;
+        if (settings) {
+          if (settings.requiredHours) setRequiredHours(settings.requiredHours);
+          if (settings.superAdminPin) {
+            setSuperAdminPin(settings.superAdminPin);
+            setTempSuperPin(settings.superAdminPin);
+          }
+          if (settings.staffScannerPin) {
+            setStaffScannerPin(settings.staffScannerPin);
+            setTempStaffPin(settings.staffScannerPin);
+          }
+        }
+      }
+    },
+    onStateUpdate: (serverState) => {
+      if (serverState.activities) setActivities(serverState.activities);
+      if (serverState.students) setStudents(serverState.students);
+      if (serverState.records) setRecords(serverState.records);
+      if (serverState.studentStatusMap) setStudentStatusMap(serverState.studentStatusMap);
+      if (serverState.settings) {
+        if (serverState.settings.requiredHours) setRequiredHours(serverState.settings.requiredHours);
+        if (serverState.settings.superAdminPin) setSuperAdminPin(serverState.settings.superAdminPin);
+        if (serverState.settings.staffScannerPin) setStaffScannerPin(serverState.settings.staffScannerPin);
+      }
+    },
+  });
+
   useEffect(() => {
     if (isAuthenticated) {
       fetchInitialData();
@@ -285,76 +366,27 @@ export default function AdminPortal() {
   const fetchInitialData = async () => {
     setRefreshing(true);
     try {
-      const res = await fetch('/api/students');
+      const res = await fetch('/api/students', { cache: 'no-store' });
       const data = await res.json();
       if (data.activities) {
-        let loaded = data.activities;
-        if (typeof window !== 'undefined') {
-          const deletedStr = localStorage.getItem('edupass_deleted_activities');
-          if (deletedStr) {
-            try {
-              const deletedIds = JSON.parse(deletedStr);
-              if (Array.isArray(deletedIds)) {
-                loaded = loaded.filter((a: Activity) => !deletedIds.includes(a.id));
-              }
-            } catch (e) {}
-          }
-        }
-        setActivities(loaded);
-        if (loaded.length > 0) {
-          setActReportSelectedId((prev) => (prev ? prev : loaded[0].id));
+        setActivities(data.activities);
+        if (data.activities.length > 0) {
+          setActReportSelectedId((prev) => (prev ? prev : data.activities[0].id));
         }
       }
       if (data.students) {
-        let loadedStudents: Student[] = data.students;
-        if (typeof window !== 'undefined') {
-          try {
-            const customStr = localStorage.getItem('edupass_custom_students');
-            if (customStr) {
-              const customArr = JSON.parse(customStr);
-              if (Array.isArray(customArr)) {
-                const map = new Map<string, Student>();
-                loadedStudents.forEach((s) => map.set(s.studentId, s));
-                customArr.forEach((s) => map.set(s.studentId, s));
-                loadedStudents = Array.from(map.values());
-              }
-            }
-
-            const deletedStr = localStorage.getItem('edupass_deleted_students');
-            if (deletedStr) {
-              const deletedIds = JSON.parse(deletedStr);
-              if (Array.isArray(deletedIds)) {
-                loadedStudents = loadedStudents.filter((s) => !deletedIds.includes(s.studentId));
-              }
-            }
-
-            const statusMapStr = localStorage.getItem('edupass_student_status_map');
-            if (statusMapStr) {
-              const sMap = JSON.parse(statusMapStr);
-              setStudentStatusMap(sMap);
-            }
-          } catch (e) {}
-        }
-        setStudents(loadedStudents);
+        setStudents(data.students);
       }
-
       if (data.records) {
-        let loadedRecords: AttendanceRecord[] = data.records;
-        if (typeof window !== 'undefined') {
-          try {
-            const customRecsStr = localStorage.getItem('edupass_custom_records');
-            if (customRecsStr) {
-              const customRecs = JSON.parse(customRecsStr);
-              if (Array.isArray(customRecs)) {
-                const recMap = new Map<string, AttendanceRecord>();
-                loadedRecords.forEach((r) => recMap.set(r.id, r));
-                customRecs.forEach((r) => recMap.set(r.id, r));
-                loadedRecords = Array.from(recMap.values());
-              }
-            }
-          } catch (e) {}
-        }
-        setRecords(loadedRecords);
+        setRecords(data.records);
+      }
+      if (data.studentStatusMap) {
+        setStudentStatusMap(data.studentStatusMap);
+      }
+      if (data.settings) {
+        if (data.settings.requiredHours) setRequiredHours(data.settings.requiredHours);
+        if (data.settings.superAdminPin) setSuperAdminPin(data.settings.superAdminPin);
+        if (data.settings.staffScannerPin) setStaffScannerPin(data.settings.staffScannerPin);
       }
     } catch (err) {
       console.error('Failed to load initial admin data', err);
@@ -1101,11 +1133,12 @@ export default function AdminPortal() {
         } catch (e) {}
       }
 
-      fetch('/api/activities', {
+      fetch('/api/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'record_attendance',
+          records: [grantRecord],
           studentIds: [manualGrantTargetStudent.studentId],
           activity: {
             id: grantRecord.activityId,
@@ -1140,7 +1173,7 @@ export default function AdminPortal() {
         title: '',
         category: 'คณะ',
         hours: 3,
-        date: new Date().toISOString().split('T')[0],
+        date: '2026-10-15',
         documentRef: '',
         note: '',
       });
@@ -1174,6 +1207,12 @@ export default function AdminPortal() {
 
     setStudents((prev) => [st, ...prev]);
 
+    fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'add_student', student: st }),
+    }).catch((e) => console.warn('Add student sync note:', e));
+
     if (typeof window !== 'undefined') {
       try {
         const customArr: Student[] = JSON.parse(localStorage.getItem('edupass_custom_students') || '[]');
@@ -1200,6 +1239,12 @@ export default function AdminPortal() {
   const handleDeleteStudent = (st: Student) => {
     setStudents((prev) => prev.filter((s) => s.studentId !== st.studentId));
 
+    fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'delete_student', studentId: st.studentId }),
+    }).catch((e) => console.warn('Delete student sync note:', e));
+
     if (typeof window !== 'undefined') {
       try {
         const deletedIds: string[] = JSON.parse(localStorage.getItem('edupass_deleted_students') || '[]');
@@ -1223,6 +1268,13 @@ export default function AdminPortal() {
   const handleChangeStudentStatus = (studentId: string, newStatus: 'ACTIVE' | 'GRADUATED' | 'WITHDRAWN') => {
     const updatedMap = { ...studentStatusMap, [studentId]: newStatus };
     setStudentStatusMap(updatedMap);
+
+    fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_student_status', studentId, status: newStatus }),
+    }).catch((e) => console.warn('Update student status sync note:', e));
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('edupass_student_status_map', JSON.stringify(updatedMap));
@@ -1301,6 +1353,15 @@ export default function AdminPortal() {
 
     const updatedStudents = Array.from(existingMap.values());
     setStudents(updatedStudents);
+
+    fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'import_students',
+        students: importedPreviewStudents,
+      }),
+    }).catch((e) => console.warn('Import students sync note:', e));
 
     if (typeof window !== 'undefined') {
       try {
@@ -1808,6 +1869,22 @@ export default function AdminPortal() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {/* Live Sync Status Pill */}
+            <span
+              className={`flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-black border transition ${
+                isLiveConnected
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                  : 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isLiveConnected ? 'bg-emerald-400 animate-ping' : 'bg-amber-400'
+                }`}
+              />
+              <span>{isLiveConnected ? 'เชื่อมต่อสด เรียลไทม์' : 'กำลังเชื่อมต่อ'}</span>
+            </span>
+
             {userRole === 'staff' && (
               <button
                 onClick={() => setIsScannerOpen(true)}
@@ -4026,6 +4103,13 @@ export default function AdminPortal() {
                       try {
                         localStorage.setItem('edupass_required_hours', String(requiredHours));
                       } catch (e) {}
+
+                      fetch('/api/sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ action: 'update_settings', settings: { requiredHours } }),
+                      }).catch((e) => console.warn('Update settings sync note:', e));
+
                       playSuccessBeep();
                       setMessage({
                         text: `🎯 ปรับเกณฑ์ชั่วโมงกิจกรรมขั้นต่ำเป็น ${requiredHours} ชั่วโมงเรียบร้อยแล้ว`,
@@ -4120,6 +4204,15 @@ export default function AdminPortal() {
                         localStorage.setItem('edupass_superadmin_pin', cleanSuper);
                         localStorage.setItem('edupass_staff_pin', cleanStaff);
                       } catch (e) {}
+
+                      fetch('/api/sync', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'update_settings',
+                          settings: { superAdminPin: cleanSuper, staffScannerPin: cleanStaff },
+                        }),
+                      }).catch((e) => console.warn('Update PINs sync note:', e));
 
                       setSuperAdminPin(cleanSuper);
                       setStaffScannerPin(cleanStaff);

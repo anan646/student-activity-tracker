@@ -1,9 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getActivities, createActivity, deleteActivity, recordAttendance } from '@/lib/googleSheets';
+import {
+  getServerStore,
+  createActivityInStore,
+  deleteActivityInStore,
+  recordAttendanceInStore,
+} from '@/lib/serverStore';
+import {
+  createActivity as syncAppsScriptCreateActivity,
+  deleteActivity as syncAppsScriptDeleteActivity,
+  recordAttendance as syncAppsScriptAttendance,
+} from '@/lib/googleSheets';
 
 export async function GET() {
-  const activities = await getActivities();
-  return NextResponse.json(activities);
+  const store = getServerStore();
+  return NextResponse.json(store.activities);
 }
 
 export async function POST(request: Request) {
@@ -27,10 +37,13 @@ export async function POST(request: Request) {
         checkInMode: checkInMode || 'SINGLE',
       };
 
-      const success = await createActivity(newActivity);
-      if (!success) {
-        return NextResponse.json({ error: 'ไม่สามารถบันทึกกิจกรรมได้' }, { status: 500 });
-      }
+      createActivityInStore(newActivity);
+
+      // Async background sync to Google Apps Script
+      syncAppsScriptCreateActivity(newActivity).catch((e) =>
+        console.warn('Background Sheets create note:', e)
+      );
+
       return NextResponse.json({ success: true, activity: newActivity });
     }
 
@@ -39,18 +52,46 @@ export async function POST(request: Request) {
       if (!activityId) {
         return NextResponse.json({ error: 'ไม่ระบุรหัสกิจกรรมที่ต้องการลบ' }, { status: 400 });
       }
-      const success = await deleteActivity(activityId);
-      return NextResponse.json({ success, activityId });
+
+      deleteActivityInStore(activityId);
+
+      syncAppsScriptDeleteActivity(activityId).catch((e) =>
+        console.warn('Background Sheets delete note:', e)
+      );
+
+      return NextResponse.json({ success: true, activityId });
     }
 
     if (action === 'record_attendance') {
-      const { studentIds, activity, checkInType } = body;
+      const { studentIds, activity, checkInType, documentRef } = body;
       if (!studentIds || !Array.isArray(studentIds) || !activity) {
         return NextResponse.json({ error: 'ข้อมูลไม่ถูกต้อง' }, { status: 400 });
       }
 
-      const result = await recordAttendance(studentIds, activity);
-      return NextResponse.json({ ...result, checkInType: checkInType || 'SINGLE' });
+      const newRecords = studentIds.map((sid: string) => ({
+        id: `REC-${activity.id}-${sid}-${Date.now().toString().slice(-4)}`,
+        studentId: sid,
+        activityId: activity.id,
+        activityTitle: activity.title,
+        category: activity.category || 'คณะ',
+        hoursEarned: Number(activity.hours || 0),
+        dateRecorded: new Date().toLocaleString('th-TH'),
+        status: 'APPROVED' as const,
+        checkInType: checkInType || 'SINGLE',
+        documentRef: documentRef || undefined,
+      }));
+
+      recordAttendanceInStore(newRecords);
+
+      syncAppsScriptAttendance(studentIds, activity).catch((e) =>
+        console.warn('Background Sheets attendance note:', e)
+      );
+
+      return NextResponse.json({
+        successCount: studentIds.length,
+        failed: [],
+        checkInType: checkInType || 'SINGLE',
+      });
     }
 
     return NextResponse.json({ error: 'ไม่พบคำสั่ง action ที่ระบุ' }, { status: 400 });
